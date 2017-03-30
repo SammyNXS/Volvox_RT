@@ -1,0 +1,62 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CudaCompile Include="CUDA_files\box.cu">
+      <Filter>CUDA Files</Filter>
+    </CudaCompile>
+    <CudaCompile Include="CUDA_files\phong.cu">
+      <Filter>CUDA Files</Filter>
+    </CudaCompile>
+    <CudaCompile Include="CUDA_files\pinhole_camera.cu">
+      <Filter>CUDA Files</Filter>
+    </CudaCompile>
+    <CudaCompile Include="CUDA_files\sphere.cu">
+      <Filter>CUDA Files</Filter>
+    </CudaCompile>
+    <CudaCompile Include="CUDA_files\RenderFuncs.cu">
+      <Filter>CUDA Files</Filter>
+    </CudaCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="optix_helpers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="CUDA_files\phong.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="commonStructs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="random.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="modelLoader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderFuncs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="ReadMe.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CUDA Files">
+      <UniqueIdentifier>{ae4dc720-03db-49c0-a2ca-13ac196dd9db}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{06be6ee6-78d7-499b-bbd6-1cf91a5a157d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{74a79689-f4ad-4f0d-81fa-1d8d2f92486d}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Volvox.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="modelLoader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

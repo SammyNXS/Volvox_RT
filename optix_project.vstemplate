@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<VSTemplate Version="3.0.0" Type="Project" xmlns="http://schemas.microsoft.com/developer/vstemplate/2005" xmlns:sdk="http://schemas.microsoft.com/developer/vstemplate-sdkextension/2010">
+  <TemplateData>
+    <Name>OptiX Project</Name>
+    <Description>A project using the OptiX engine</Description>
+    <Icon>optix_project.ico</Icon>
+    <ProjectType>VC</ProjectType>
+    <RequiredFrameworkVersion>2.0</RequiredFrameworkVersion>
+    <SortOrder>1000</SortOrder>
+    <TemplateID>optix_project_nvidia</TemplateID>
+    <CreateNewFolder>true</CreateNewFolder>
+    <DefaultName>optix_project</DefaultName>
+    <ProvideDefaultName>true</ProvideDefaultName>
+  </TemplateData>
+  <TemplateContent>
+    <Project File="optix_project_template.vcxproj" ReplaceParameters="true">
+      <ProjectItem ReplaceParameters="false" OpenInEditor="true">optix_project.cpp</ProjectItem>
+      <ProjectItem ReplaceParameters="true" OpenInEditor="false">optix_helpers.h</ProjectItem>
+      <ProjectItem ReplaceParameters="false" OpenInEditor="false">CUDA_files\box.cu</ProjectItem>
+      <ProjectItem ReplaceParameters="false" OpenInEditor="false">CUDA_files\constantbg.cu</ProjectItem>
+      <ProjectItem ReplaceParameters="false" OpenInEditor="false">CUDA_files\phong.cu</ProjectItem>
+      <ProjectItem ReplaceParameters="false" OpenInEditor="false">CUDA_files\phong.h</ProjectItem>
+      <ProjectItem ReplaceParameters="false" OpenInEditor="false">CUDA_files\pinhole_camera.cu</ProjectItem>
+      <ProjectItem ReplaceParameters="false" OpenInEditor="false">PTX_files\ReadMe_dir.txt</ProjectItem>
+      <ProjectItem ReplaceParameters="false" OpenInEditor="false">ReadMe.txt</ProjectItem>
+    </Project>
+  </TemplateContent>
+  <WizardExtension>
+    <Assembly>optix_wizard, Version=1.0.0.0, Culture=neutral, PublicKeyToken=b590cd4550eb3999</Assembly>
+    <FullClassName>optix_wizard.IOptiXWizard</FullClassName>
+  </WizardExtension>
+</VSTemplate>
