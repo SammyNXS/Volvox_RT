@@ -1,14 +1,14 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
-VisualStudioVersion = 14.0.23107.0
+VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "optix_project_template", "optix_project_template.vcxproj", "{7F37516E-A601-4A80-AF24-D0788679FA92}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Volvox", "optix_project_template.vcxproj", "{7F37516E-A601-4A80-AF24-D0788679FA92}"
 	ProjectSection(ProjectDependencies) = postProject
 		{DB89B633-7518-37AE-AF04-A567C9D5B6C7} = {DB89B633-7518-37AE-AF04-A567C9D5B6C7}
 	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "sutil_sdk", "..\..\..\..\..\..\ProgramData\NVIDIA Corporation\OptiX SDK 4.0.2\SDK\BUILD\sutil\sutil_sdk.vcxproj", "{DB89B633-7518-37AE-AF04-A567C9D5B6C7}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "sutil_sdk", "C:\ProgramData\NVIDIA Corporation\OptiX SDK 4.0.2\SDK\BUILD\sutil\sutil_sdk.vcxproj", "{DB89B633-7518-37AE-AF04-A567C9D5B6C7}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

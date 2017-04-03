@@ -70,6 +70,35 @@ static __device__ __inline__ uchar4 make_color(const float3& c)
                         255u);                                                 /* A */
 }
 
+
+static __device__ __inline__ float2 concentric_sample_disk(const float2& u)
+{
+	// ConcentricSampleDisk
+	// a) Map uniform random number to [-1,1]^2
+	float2 uOffset = 2.f * u - make_float2(1.f, 1.f);
+
+	// b) Handle degeneracy at origin
+	if (uOffset.x == 0 && uOffset.y == 0)
+		return make_float2(0.f, 0.f);
+
+	// c) Apply concentric mapping to point
+	float theta;
+	float r;
+	if(abs(uOffset.x) > abs(uOffset.y))
+	{
+		r = uOffset.x;
+		theta = M_PI_4f * (uOffset.y / uOffset.x);
+	}
+	else
+	{
+		r = uOffset.y;
+		theta = M_PI_2f - M_PI_4f * (uOffset.x / uOffset.y);
+	}
+
+
+	return r * make_float2(cos(theta), sin(theta));
+}
+
 struct PerRayData_radiance
 {
   float3 result;

@@ -56,6 +56,12 @@
 
 #include "modelLoader.h"
 
+#define USING_THIN_LENS
+#define USING_TRANSPARENCY
+
+#define VOLVOX_LEVEL 3
+
+
 using namespace optix;
 using namespace std;
 
@@ -98,6 +104,7 @@ Material glass_matl;
 Material diffuse_matl;
 
 bool test_scale;
+
 //------------------------------------------------------------------------------
 //
 // Forward decls
@@ -211,7 +218,17 @@ void createContext()
 
     // Ray generation program
     {
-        const std::string camera_name = "pinhole_camera";
+#ifdef USING_THIN_LENS
+		const std::string camera_name = "thin_lens_camera";
+		context["f_length"]->setFloat(7.f);
+		//context["dist"]->setFloat(1.f);
+
+		context["lens_rad"]->setFloat(2.f);
+
+#else
+		const std::string camera_name = "pinhole_camera";
+#endif
+
         Program ray_gen_program = 
 			context->createProgramFromPTXFile( render_ptx_path, camera_name );
         context->setRayGenerationProgram( 0, ray_gen_program );
@@ -244,37 +261,38 @@ void setupMaterials()
 		context->createProgramFromPTXFile(render_ptx_path, "any_hit_shadow");
 	diffuse_matl->setAnyHitProgram(1, diff_ah);
 	diffuse_matl["Ka"]->setFloat(0.3f, 0.3f, 0.3f);
-	diffuse_matl["Kd"]->setFloat(0.6f, 0.7f, 0.8f);
+	diffuse_matl["Kd"]->setFloat(0.1608f, 0.7529f, 0.1333f);
 	diffuse_matl["Ks"]->setFloat(0.8f, 0.9f, 0.8f);
 	diffuse_matl["phong_exp"]->setFloat(88);
 	diffuse_matl["reflectivity_n"]->setFloat(0.2f, 0.2f, 0.2f);
 	
 
+
+	// Volvox Color: 41,192,34 -> 0.160784, 0.75294117, 0.1333333
+
 	// Glass material
 	Program glass_ch = 
 		context->createProgramFromPTXFile(render_ptx_path,
 			"glass_closest_hit_radiance");
-	const std::string glass_ahname = "glass_any_hit_shadow";
-	Program glass_ah = 
-		context->createProgramFromPTXFile(render_ptx_path, glass_ahname);
+	//const std::string glass_ahname = "glass_any_hit_shadow";
+	//Program glass_ah = 
+	//	context->createProgramFromPTXFile(render_ptx_path, glass_ahname);
 	glass_matl = context->createMaterial();
 	glass_matl->setClosestHitProgram(0, glass_ch);
-	glass_matl->setAnyHitProgram(1, glass_ah);
+	//glass_matl->setAnyHitProgram(1, glass_ah);
 
 	glass_matl["importance_cutoff"]->setFloat(1e-2f);
-	glass_matl["cutoff_color"]->setFloat(0.34f, 0.55f, 0.85f);
+	glass_matl["cutoff_color"]->setFloat(0.34f, 2.0f, 0.85f);
 
 	glass_matl["fresnel_exponent"]->setFloat(3.0f);
 	glass_matl["fresnel_minimum"]->setFloat(0.1f);
 	glass_matl["fresnel_maximum"]->setFloat(1.0f);
 
 	glass_matl["refraction_index"]->setFloat(1.4f);
-	//glass_matl["refraction_color"]->setFloat(1.f, 1.f, 1.f);
-	//glass_matl["reflection_color"]->setFloat(1.f, 1.f, 1.f);
-	glass_matl["refraction_color"]->setFloat(.80f, .89f, .75f);
-	glass_matl["reflection_color"]->setFloat(.80f, .89f, .75f);
-	glass_matl["refraction_maxdepth"]->setInt(100);
-	glass_matl["reflection_maxdepth"]->setInt(100);
+	glass_matl["refraction_color"]->setFloat(0.1608f, 0.7529f, 0.1333f);
+	glass_matl["reflection_color"]->setFloat(0.0f, 1.5f, 0.0f);
+	glass_matl["refraction_maxdepth"]->setInt(5);
+	glass_matl["reflection_maxdepth"]->setInt(4);
 	float3 extinction = make_float3(.80f, .89f, .75f);
 
 	glass_matl["extinction_constant"]->setFloat(log(extinction.x),
@@ -329,7 +347,10 @@ vector<float3>* loadIcosphere(string file)
 void createGeometry()
 {
 	// Load icosphere here
-	vector<float3>* sphere_locs = loadIcosphere("icosphere_3");
+
+	string icosphere_file = "icosphere_" + to_string(VOLVOX_LEVEL);
+
+	vector<float3>* sphere_locs = loadIcosphere(icosphere_file);
 
 	const std::string sphere_ptx(ptxPath("sphere.cu"));
 	Program sphere_bounds = 
@@ -337,7 +358,7 @@ void createGeometry()
 	Program sphere_intersect = 
 		context->createProgramFromPTXFile(sphere_ptx, "robust_intersect");
 
-	float rad = 0.03;
+	float rad = (VOLVOX_LEVEL == 3) ? 0.02 : 0.08;
 
 	Geometry sphere = context->createGeometry();
 	sphere->setPrimitiveCount(1u);
@@ -366,13 +387,18 @@ void createTopGroups(Context context,
 	GeometryInstance sphere_inst = context->createGeometryInstance();
 	sphere_inst->setGeometry(geometry);
 	sphere_inst->setMaterialCount(1);
+#ifdef USING_TRANSPARENCY
 	sphere_inst->setMaterial(0, glass_matl);
+#else
+	sphere_inst->setMaterial(0, diffuse_matl);
+#endif
+
 
 	// Wrap sphere instance in a geometry group, to be put into a 
 	GeometryGroup geometry_group = context->createGeometryGroup();
 	geometry_group->setChildCount(1);
 	geometry_group->setChild(0, sphere_inst);
-	geometry_group->setAcceleration(gg_accel);
+	geometry_group->setAcceleration(context->createAcceleration("Bvh"));
 
 	Acceleration volvox_accel = no_accel ?
 		context->createAcceleration("NoAccel") :
@@ -398,17 +424,18 @@ void createTopGroups(Context context,
 
 	std::vector<float4>* volvox_locs = new std::vector<float4>();
 
-	volvox_locs->push_back(make_float4(0, 0, 0, 1));
-	volvox_locs->push_back(make_float4(2, 2, 2,1));
-	volvox_locs->push_back(make_float4(-2, -2, -2,1));
-	volvox_locs->push_back(make_float4(-2, 6, 7,1));
-	volvox_locs->push_back(make_float4(0, 6, -7,1));
-	volvox_locs->push_back(make_float4(7, 4, 3,1));
-	volvox_locs->push_back(make_float4(2, -5, 9,1));
+	volvox_locs->push_back(make_float4(0.f, 0.f, 0.f, 1.f));
+	volvox_locs->push_back(make_float4(2.f, 2.f, 2.f, 1.f));
+	volvox_locs->push_back(make_float4(-2.f, -2.f, -2.f, 1.f));
+	volvox_locs->push_back(make_float4(-2.f, 6.f, 7.f, 1.f));
+	volvox_locs->push_back(make_float4(0.f, 6.f, -7.f, 1.f));
+	volvox_locs->push_back(make_float4(7.f, 4.f, 3.f, 1.f));
+	volvox_locs->push_back(make_float4(3.0f, 7.f, -4.f, 1.f));
+
 
 	// Volvox with inner child
-	volvox_locs->push_back(make_float4(4, 3, -1, 0.4));
-	volvox_locs->push_back(make_float4(4, 3, -1, 1));
+	volvox_locs->push_back(make_float4(4.f, 0.f, -1.f, 0.4f));
+	volvox_locs->push_back(make_float4(4.f, 0.f, -1.f, 1.f));
 
 	// Create a toplevel group holding all the row groups.
 	Acceleration top_accel = no_accel ?
@@ -450,11 +477,9 @@ void setupCamera()
 
 void setupLights()
 {
-	//BasicLight lights[] = {
-	//	{ make_float3(-5.0f, 60.0f, -16.0f), make_float3(1.0f, 1.0f, 1.0f), 1 }
-	//};
 	BasicLight lights[] = {
-		{ make_float3(0.f, 0.0f, 0.0f), make_float3(1.0f, 1.0f, 1.0f), 1 }
+	//	{ make_float3(-5.0f, 60.0f, -16.0f), make_float3(1.0f, 1.0f, 1.0f), 1 },
+		{ make_float3(0.f, 0.0f, -16.0f), make_float3(1.0f, 1.0f, 1.0f), 1 }
 	};
     Buffer light_buffer = context->createBuffer( RT_BUFFER_INPUT );
     light_buffer->setFormat( RT_FORMAT_USER );

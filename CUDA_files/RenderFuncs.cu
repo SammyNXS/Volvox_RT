@@ -31,6 +31,7 @@
 
 #include "RenderFuncs.h"
 #include <optixu/optixu_aabb.h>
+#include "random.h"
 
 rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, ); 
 rtDeclareVariable(float3, shading_normal,   attribute shading_normal, ); 
@@ -74,6 +75,102 @@ RT_PROGRAM void pinhole_camera()
   rtTrace(top_object, ray, prd);
 
   output_buffer[launch_index] = make_color( prd.result );
+}
+
+/*
+	Thin lens camera, to produce simple focal plane/depth of field effect. Based
+	primarily on implementation shown in Physically Based Rendering by Pharr, 
+	Jakob, and Humphreys
+
+*/
+
+rtDeclareVariable(float, f_length, , );
+rtDeclareVariable(float, lens_rad, , );
+
+//rtDeclareVariable(float, dist, , );
+
+RT_PROGRAM void thin_lens_camera()
+{
+	// Get ray direction of eye to image plane in the same way as before
+	size_t2 screen = output_buffer.size();
+
+	float2 d = make_float2(launch_index) / make_float2(screen) * 2.f - 1.f;
+	float3 ray_origin = eye;
+	float3 ray_direction = normalize(d.x*U + d.y*V + W);
+
+	// If lens_radius is 0, treat as pinhole
+	if(lens_rad == 0)
+	{
+		optix::Ray ray(ray_origin, ray_direction, radiance_ray_type, scene_epsilon);
+
+		PerRayData_radiance prd;
+		prd.importance = 1.f;
+		prd.depth = 0;
+
+		rtTrace(top_object, ray, prd);
+
+		output_buffer[launch_index] = make_color(prd.result);
+	
+	}
+	else
+	{
+		///*
+
+		//	Any ray that enters parallel to the axis on one side of the lens proceeds
+		//	towards the focal point f on the other side
+
+		//	Any ray that arrives at the lens after passing through the focal point on
+		//	the front side comes out paralle to taxis on other side
+
+		//	Any ray that passes through center of lens will not change direction
+
+		//	Relation between distance s and image distance D' (Thin Lens Formula):
+
+		//	(1/D) + (1/D') = (1/f);
+
+		//	-> (1/D') = (1/f) - (1/D);
+
+		//	-> D' = 1/((1/f) - (1/D));
+
+		//	-> D' = (f * D) / (f + D)
+		//*/
+
+		//// Get D' value from distance and focal length
+		//float dist_prime = (f_length * dist) / (f_length + dist);
+
+		// 1) Sample point on lens
+		unsigned seed = tea<2>(d.x, d.y);
+
+		float2 disc_point = 
+			concentric_sample_disk(make_float2(rnd(seed) - 0.5f, rnd(seed) - 0.5f));
+
+
+		float2 p_lens = lens_rad * disc_point;
+
+
+		// 2) Compute point on plane of focus
+
+		float ft = f_length / ray_direction.z;
+
+		float3 pFocus = ray_origin + ray_direction * ft;
+
+		// 3) Update ray for effect on lens
+
+		ray_origin = make_float3(p_lens.x, p_lens.y, 0.f);
+		ray_direction = normalize(pFocus - ray_origin);
+
+		optix::Ray ray(ray_origin, ray_direction, radiance_ray_type, scene_epsilon);
+
+
+		PerRayData_radiance prd;
+		prd.importance = 1.f;
+		prd.depth = 0;
+
+		rtTrace(top_object, ray, prd);
+
+		output_buffer[launch_index] = make_color(prd.result);
+	}
+
 }
 
 
