@@ -1,1 +1,7 @@
 *.db
+*.suo
+*.lastbuildstate
+*.pdb
+*.idb
+*.deps
+*.log
