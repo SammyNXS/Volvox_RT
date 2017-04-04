@@ -5,3 +5,5 @@
 *.idb
 *.deps
 *.log
+*.tlog
+*.ilk

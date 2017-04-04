@@ -57,7 +57,7 @@
 #include "modelLoader.h"
 
 #define USING_THIN_LENS
-#define USING_TRANSPARENCY
+//#define USING_TRANSPARENCY
 
 #define VOLVOX_LEVEL 3
 
@@ -358,7 +358,7 @@ void createGeometry()
 	Program sphere_intersect = 
 		context->createProgramFromPTXFile(sphere_ptx, "robust_intersect");
 
-	float rad = (VOLVOX_LEVEL == 3) ? 0.02 : 0.08;
+	float rad = (VOLVOX_LEVEL >= 2) ? 0.03 : 0.08;
 
 	Geometry sphere = context->createGeometry();
 	sphere->setPrimitiveCount(1u);
@@ -424,18 +424,15 @@ void createTopGroups(Context context,
 
 	std::vector<float4>* volvox_locs = new std::vector<float4>();
 
-	volvox_locs->push_back(make_float4(0.f, 0.f, 0.f, 1.f));
-	volvox_locs->push_back(make_float4(2.f, 2.f, 2.f, 1.f));
-	volvox_locs->push_back(make_float4(-2.f, -2.f, -2.f, 1.f));
-	volvox_locs->push_back(make_float4(-2.f, 6.f, 7.f, 1.f));
-	volvox_locs->push_back(make_float4(0.f, 6.f, -7.f, 1.f));
-	volvox_locs->push_back(make_float4(7.f, 4.f, 3.f, 1.f));
-	volvox_locs->push_back(make_float4(3.0f, 7.f, -4.f, 1.f));
+	volvox_locs->push_back(make_float4(-2.f, -2.f, 6.f, 1.f));
+	volvox_locs->push_back(make_float4(-2.f, -4.f,12.f, 1.f));
+	volvox_locs->push_back(make_float4(0.f, 5.f, 3.f, 1.f));
+	volvox_locs->push_back(make_float4(5.f, -3.f, 8.f, 1.f));
 
 
 	// Volvox with inner child
-	volvox_locs->push_back(make_float4(4.f, 0.f, -1.f, 0.4f));
-	volvox_locs->push_back(make_float4(4.f, 0.f, -1.f, 1.f));
+	volvox_locs->push_back(make_float4(2.f, 0.f, 5.f, 0.5f));
+	volvox_locs->push_back(make_float4(2.f, 0.f, 5.f, 1.f));
 
 	// Create a toplevel group holding all the row groups.
 	Acceleration top_accel = no_accel ?
@@ -467,9 +464,12 @@ void createTopGroups(Context context,
 
 void setupCamera()
 {
-    camera_eye    = make_float3( 7.0f, 9.2f, -6.0f );
-    camera_lookat = make_float3( 0.0f, 4.0f,  0.0f );
-    camera_up     = make_float3( 0.0f, 1.0f,  0.0f );
+    //camera_eye    = make_float3( 7.0f, 9.2f, -6.0f );
+    //camera_lookat = make_float3( 0.0f, 4.0f,  0.0f );
+	camera_eye = make_float3(0.0f, 0.0f, 0.0f);
+	camera_lookat = make_float3(0.0f, 0.0f, 1.0f);
+	
+	camera_up     = make_float3( 0.0f, 1.0f,  0.0f );
 
     camera_rotate  = Matrix4x4::identity();
 }
@@ -479,7 +479,7 @@ void setupLights()
 {
 	BasicLight lights[] = {
 	//	{ make_float3(-5.0f, 60.0f, -16.0f), make_float3(1.0f, 1.0f, 1.0f), 1 },
-		{ make_float3(0.f, 0.0f, -16.0f), make_float3(1.0f, 1.0f, 1.0f), 1 }
+		{ make_float3(0.f, 0.0f, -5.0f), make_float3(1.0f, 1.0f, 1.0f), 1 }
 	};
     Buffer light_buffer = context->createBuffer( RT_BUFFER_INPUT );
     light_buffer->setFormat( RT_FORMAT_USER );

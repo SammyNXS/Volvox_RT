@@ -33,6 +33,10 @@
 #include <optixu/optixu_aabb.h>
 #include "random.h"
 
+#define SAMPLE_ITERS 4.f
+
+#define SAMPLE_ITERS_RECIP (1.f / SAMPLE_ITERS)
+
 rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, ); 
 rtDeclareVariable(float3, shading_normal,   attribute shading_normal, ); 
 
@@ -138,37 +142,51 @@ RT_PROGRAM void thin_lens_camera()
 		//// Get D' value from distance and focal length
 		//float dist_prime = (f_length * dist) / (f_length + dist);
 
-		// 1) Sample point on lens
-		unsigned seed = tea<2>(d.x, d.y);
 
-		float2 disc_point = 
-			concentric_sample_disk(make_float2(rnd(seed) - 0.5f, rnd(seed) - 0.5f));
+		float3 result_color = make_float3(0.f, 0.f, 0.f);
 
+		for (int i = 0; i < SAMPLE_ITERS; i++)
+		{
+			// 1) Sample point on lens
+			unsigned seed = tea<2>(d.x, d.y);
+			float2 sample_point = make_float2(rnd(seed) - 0.5f, rnd(seed) - 0.5f);
 
-		float2 p_lens = lens_rad * disc_point;
+			//		float2 sample_point = d;
 
-
-		// 2) Compute point on plane of focus
-
-		float ft = f_length / ray_direction.z;
-
-		float3 pFocus = ray_origin + ray_direction * ft;
-
-		// 3) Update ray for effect on lens
-
-		ray_origin = make_float3(p_lens.x, p_lens.y, 0.f);
-		ray_direction = normalize(pFocus - ray_origin);
-
-		optix::Ray ray(ray_origin, ray_direction, radiance_ray_type, scene_epsilon);
+			//float2 sample_point = make_float2((d.x + 1.f) * 0.5f, (d.y + 1.f) * 0.5f);
 
 
-		PerRayData_radiance prd;
-		prd.importance = 1.f;
-		prd.depth = 0;
+			float2 disc_point =
+				concentric_sample_disk(sample_point);
 
-		rtTrace(top_object, ray, prd);
 
-		output_buffer[launch_index] = make_color(prd.result);
+			float2 p_lens = lens_rad * disc_point;
+
+
+			// 2) Compute point on plane of focus
+
+			float ft = f_length / ray_direction.z;
+
+			float3 pFocus = ray_origin + ray_direction * ft;
+
+			// 3) Update ray for effect on lens
+
+			ray_origin = make_float3(p_lens.x, p_lens.y, 0.f);
+			ray_direction = normalize(pFocus - ray_origin);
+
+			optix::Ray ray(ray_origin, ray_direction, radiance_ray_type, scene_epsilon);
+
+
+			PerRayData_radiance prd;
+			prd.importance = 1.f;
+			prd.depth = 0;
+
+			rtTrace(top_object, ray, prd);
+			result_color += prd.result;
+		}
+		result_color *= SAMPLE_ITERS_RECIP;
+
+		output_buffer[launch_index] = make_color(result_color);//make_color(prd.result);
 	}
 
 }
