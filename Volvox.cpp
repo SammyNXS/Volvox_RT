@@ -57,7 +57,7 @@
 #include "modelLoader.h"
 
 #define USING_THIN_LENS
-#define USING_TRANSPARENCY
+//#define USING_TRANSPARENCY
 
 #define VOLVOX_LEVEL 3
 
@@ -220,9 +220,9 @@ void createContext()
     {
 #ifdef USING_THIN_LENS
 		const std::string camera_name = "thin_lens_camera";
-		context["f_length"]->setFloat(2.f);
+		context["f_length"]->setFloat(7.f);
 
-		context["lens_rad"]->setFloat(1.f);
+		context["lens_rad"]->setFloat(2.f);
 
 #else
 		const std::string camera_name = "pinhole_camera";

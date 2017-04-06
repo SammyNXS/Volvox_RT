@@ -33,7 +33,7 @@
 #include <optixu/optixu_aabb.h>
 #include "random.h"
 
-#define SAMPLE_ITERS 2.f
+#define SAMPLE_ITERS 64.f
 
 #define SAMPLE_ITERS_RECIP (1.f / SAMPLE_ITERS)
 
@@ -98,13 +98,16 @@ RT_PROGRAM void thin_lens_camera()
 	size_t2 screen = output_buffer.size();
 
 	float2 d = make_float2(launch_index) / make_float2(screen) * 2.f - 1.f;
-	float3 ray_origin = eye;
-	float3 ray_direction = normalize(d.x*U + d.y*V + W);
+	float3 init_ray_origin = eye;
+	float3 init_ray_direction = normalize(d.x*U + d.y*V + W);
 
 	// If lens_radius is 0, treat as pinhole
 	if(lens_rad == 0)
 	{
-		optix::Ray ray(ray_origin, ray_direction, radiance_ray_type, scene_epsilon);
+		optix::Ray ray(init_ray_origin,
+			init_ray_direction,
+			radiance_ray_type,
+			scene_epsilon);
 
 		PerRayData_radiance prd;
 		prd.importance = 1.f;
@@ -118,8 +121,8 @@ RT_PROGRAM void thin_lens_camera()
 	else
 	{
 		// Get distance
-		float ft = f_length / ray_direction.z;
-		float3 pFocus = ray_origin + ray_direction * ft;
+		float ft = f_length / init_ray_direction.z;
+		float3 pFocus = init_ray_origin + init_ray_direction * ft;
 
 		float3 result_color = make_float3(0.f, 0.f, 0.f);
 
@@ -136,9 +139,9 @@ RT_PROGRAM void thin_lens_camera()
 
 			// 2) Compute point on plane of focus
 
-			ray_origin += /*make_float3(p_lens.x, p_lens.y, 0.f);*/ (p_lens.x * U + p_lens.y * V );
+			float3 ray_origin = init_ray_origin + p_lens.x * U + p_lens.y * V ;
 
-			ray_direction = normalize(pFocus - ray_origin);
+			float3 ray_direction = normalize(pFocus - ray_origin);
 
 			// 3) Update ray for effect on lens
 			optix::Ray ray(ray_origin, ray_direction, radiance_ray_type, scene_epsilon);
@@ -151,7 +154,7 @@ RT_PROGRAM void thin_lens_camera()
 			rtTrace(top_object, ray, prd);
 			result_color += prd.result;
 		}
-		//result_color *= SAMPLE_ITERS_RECIP;
+		result_color *= SAMPLE_ITERS_RECIP;
 
 		output_buffer[launch_index] = make_color(result_color);//make_color(prd.result);
 	}
