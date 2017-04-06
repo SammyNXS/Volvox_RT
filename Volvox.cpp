@@ -57,7 +57,7 @@
 #include "modelLoader.h"
 
 #define USING_THIN_LENS
-//#define USING_TRANSPARENCY
+#define USING_TRANSPARENCY
 
 #define VOLVOX_LEVEL 3
 
@@ -220,10 +220,9 @@ void createContext()
     {
 #ifdef USING_THIN_LENS
 		const std::string camera_name = "thin_lens_camera";
-		context["f_length"]->setFloat(7.f);
-		//context["dist"]->setFloat(1.f);
+		context["f_length"]->setFloat(2.f);
 
-		context["lens_rad"]->setFloat(2.f);
+		context["lens_rad"]->setFloat(1.f);
 
 #else
 		const std::string camera_name = "pinhole_camera";
@@ -244,8 +243,8 @@ void createContext()
 		context->setMissProgram(0,
 			context->createProgramFromPTXFile(render_ptx_path, miss_name));
 		const float3 default_color = make_float3(1.0f, 1.0f, 1.0f);
-		context["bg_color"]->setFloat(make_float3(1.f, 1.f, 0.8f));
-		//context["bg_color"]->setFloat(make_float3(0.f, 0.f, 0.f));
+		//context["bg_color"]->setFloat(make_float3(1.f, 1.f, 0.8f));
+		context["bg_color"]->setFloat(make_float3(0.f, 0.f, 0.f));
 	}
 }
 
@@ -282,17 +281,17 @@ void setupMaterials()
 	//glass_matl->setAnyHitProgram(1, glass_ah);
 
 	glass_matl["importance_cutoff"]->setFloat(1e-2f);
-	glass_matl["cutoff_color"]->setFloat(0.34f, 2.0f, 0.85f);
+	glass_matl["cutoff_color"]->setFloat(0.34f, 0.8f, 0.85f);
 
 	glass_matl["fresnel_exponent"]->setFloat(3.0f);
 	glass_matl["fresnel_minimum"]->setFloat(0.1f);
-	glass_matl["fresnel_maximum"]->setFloat(1.0f);
+	glass_matl["fresnel_maximum"]->setFloat(1.5f);
 
-	glass_matl["refraction_index"]->setFloat(1.4f);
-	glass_matl["refraction_color"]->setFloat(0.1608f, 0.7529f, 0.1333f);
-	glass_matl["reflection_color"]->setFloat(0.0f, 1.5f, 0.0f);
-	glass_matl["refraction_maxdepth"]->setInt(5);
-	glass_matl["reflection_maxdepth"]->setInt(4);
+	glass_matl["refraction_index"]->setFloat(1.1f);
+	glass_matl["refraction_color"]->setFloat(0.1608f, 0.7529f + 0.5f, 0.1333f);
+	//glass_matl["reflection_color"]->setFloat(0.4f, 2.f, 0.4f);
+	glass_matl["refraction_maxdepth"]->setInt(100);
+	//glass_matl["reflection_maxdepth"]->setInt(5);
 	float3 extinction = make_float3(.80f, .89f, .75f);
 
 	glass_matl["extinction_constant"]->setFloat(log(extinction.x),
@@ -358,7 +357,7 @@ void createGeometry()
 	Program sphere_intersect = 
 		context->createProgramFromPTXFile(sphere_ptx, "robust_intersect");
 
-	float rad = (VOLVOX_LEVEL >= 2) ? 0.03 : 0.08;
+	float rad = (VOLVOX_LEVEL >= 3) ? 0.035 : 0.05;
 
 	Geometry sphere = context->createGeometry();
 	sphere->setPrimitiveCount(1u);
@@ -423,6 +422,8 @@ void createTopGroups(Context context,
 
 
 	std::vector<float4>* volvox_locs = new std::vector<float4>();
+
+	volvox_locs->push_back(make_float4(0.f, 0.f, 1.5f, 0.5f));
 
 	volvox_locs->push_back(make_float4(-2.f, -2.f, 6.f, 1.f));
 	volvox_locs->push_back(make_float4(-2.f, -4.f,12.f, 1.f));

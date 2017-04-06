@@ -99,6 +99,8 @@ static __device__ __inline__ float2 concentric_sample_disk(const float2& u)
 	return r * make_float2(cos(theta), sin(theta));
 }
 
+
+
 struct PerRayData_radiance
 {
   float3 result;

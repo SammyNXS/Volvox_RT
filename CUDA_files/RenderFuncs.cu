@@ -33,7 +33,7 @@
 #include <optixu/optixu_aabb.h>
 #include "random.h"
 
-#define SAMPLE_ITERS 4.f
+#define SAMPLE_ITERS 2.f
 
 #define SAMPLE_ITERS_RECIP (1.f / SAMPLE_ITERS)
 
@@ -85,7 +85,6 @@ RT_PROGRAM void pinhole_camera()
 	Thin lens camera, to produce simple focal plane/depth of field effect. Based
 	primarily on implementation shown in Physically Based Rendering by Pharr, 
 	Jakob, and Humphreys
-
 */
 
 rtDeclareVariable(float, f_length, , );
@@ -118,62 +117,30 @@ RT_PROGRAM void thin_lens_camera()
 	}
 	else
 	{
-		///*
-
-		//	Any ray that enters parallel to the axis on one side of the lens proceeds
-		//	towards the focal point f on the other side
-
-		//	Any ray that arrives at the lens after passing through the focal point on
-		//	the front side comes out paralle to taxis on other side
-
-		//	Any ray that passes through center of lens will not change direction
-
-		//	Relation between distance s and image distance D' (Thin Lens Formula):
-
-		//	(1/D) + (1/D') = (1/f);
-
-		//	-> (1/D') = (1/f) - (1/D);
-
-		//	-> D' = 1/((1/f) - (1/D));
-
-		//	-> D' = (f * D) / (f + D)
-		//*/
-
-		//// Get D' value from distance and focal length
-		//float dist_prime = (f_length * dist) / (f_length + dist);
-
+		// Get distance
+		float ft = f_length / ray_direction.z;
+		float3 pFocus = ray_origin + ray_direction * ft;
 
 		float3 result_color = make_float3(0.f, 0.f, 0.f);
 
 		for (int i = 0; i < SAMPLE_ITERS; i++)
 		{
 			// 1) Sample point on lens
-			unsigned seed = tea<2>(d.x, d.y);
-			float2 sample_point = make_float2(rnd(seed) - 0.5f, rnd(seed) - 0.5f);
-
-			//		float2 sample_point = d;
-
-			//float2 sample_point = make_float2((d.x + 1.f) * 0.5f, (d.y + 1.f) * 0.5f);
-
+			unsigned seed = tea<4>(d.x, d.y);
+			float2 sample_point = make_float2(rnd(seed), rnd(seed));
 
 			float2 disc_point =
 				concentric_sample_disk(sample_point);
 
-
 			float2 p_lens = lens_rad * disc_point;
-
 
 			// 2) Compute point on plane of focus
 
-			float ft = f_length / ray_direction.z;
+			ray_origin += /*make_float3(p_lens.x, p_lens.y, 0.f);*/ (p_lens.x * U + p_lens.y * V );
 
-			float3 pFocus = ray_origin + ray_direction * ft;
-
-			// 3) Update ray for effect on lens
-
-			ray_origin = make_float3(p_lens.x, p_lens.y, 0.f);
 			ray_direction = normalize(pFocus - ray_origin);
 
+			// 3) Update ray for effect on lens
 			optix::Ray ray(ray_origin, ray_direction, radiance_ray_type, scene_epsilon);
 
 
@@ -184,7 +151,7 @@ RT_PROGRAM void thin_lens_camera()
 			rtTrace(top_object, ray, prd);
 			result_color += prd.result;
 		}
-		result_color *= SAMPLE_ITERS_RECIP;
+		//result_color *= SAMPLE_ITERS_RECIP;
 
 		output_buffer[launch_index] = make_color(result_color);//make_color(prd.result);
 	}
@@ -257,7 +224,7 @@ RT_PROGRAM void glass_closest_hit_radiance()
   const float3 i = ray.direction;                           // incident direction
 
   float reflection = 1.0f;
-  float3 result = make_float3(0.0f);
+  float3 result = make_float3(0.0f,0.05f, 0.f);
 
   float3 beer_attenuation;
   if(dot(n, ray.direction) > 0){
@@ -299,31 +266,10 @@ RT_PROGRAM void glass_closest_hit_radiance()
         rtTrace( top_object, ray, refr_prd );
         result += (1.0f - reflection) * refraction_color * refr_prd.result;
       } else {
-        result += (1.0f - reflection) * refraction_color * cutoff_color;
+        result +=(1.0f - reflection) * refraction_color * cutoff_color;
       }
     }
     // else TIR
-  }
-
-  // reflection
-  if (prd_radiance.depth < min(reflection_maxdepth, max_depth))
-  {
-    float3 r = reflect(i, n);
-
-    float importance = prd_radiance.importance 
-		* reflection 
-		* optix::luminance( reflection_color * beer_attenuation );
-    if ( importance > importance_cutoff ) {
-      optix::Ray ray( h, r, radiance_ray_type, scene_epsilon );
-      PerRayData_radiance refl_prd;
-      refl_prd.depth = prd_radiance.depth+1;
-      refl_prd.importance = importance;
-
-      rtTrace( top_object, ray, refl_prd );
-      result += reflection * reflection_color * refl_prd.result;
-    } else {
-      result += reflection * reflection_color * cutoff_color;
-    }
   }
 
   result = result * beer_attenuation;
