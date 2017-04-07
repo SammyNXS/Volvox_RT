@@ -57,9 +57,13 @@
 #include "modelLoader.h"
 
 #define USING_THIN_LENS
-//#define USING_TRANSPARENCY
+#define USING_TRANSPARENCY
 
 #define VOLVOX_LEVEL 3
+
+#define FOCAL_LENGTH 2.f
+
+#define LENS_RAD 0.1f
 
 
 using namespace optix;
@@ -102,6 +106,10 @@ int        mouse_button;
 // Materials
 Material glass_matl;
 Material diffuse_matl;
+
+float focal_length;
+
+float lens_rad;
 
 bool test_scale;
 
@@ -220,9 +228,11 @@ void createContext()
     {
 #ifdef USING_THIN_LENS
 		const std::string camera_name = "thin_lens_camera";
-		context["f_length"]->setFloat(7.f);
+		focal_length = FOCAL_LENGTH;
+		lens_rad = LENS_RAD;
 
-		context["lens_rad"]->setFloat(2.f);
+		context["f_length"]->setFloat(focal_length);
+		context["lens_rad"]->setFloat(lens_rad);
 
 #else
 		const std::string camera_name = "pinhole_camera";
@@ -288,7 +298,7 @@ void setupMaterials()
 	glass_matl["fresnel_maximum"]->setFloat(1.5f);
 
 	glass_matl["refraction_index"]->setFloat(1.1f);
-	glass_matl["refraction_color"]->setFloat(0.1608f, 0.7529f + 0.5f, 0.1333f);
+	glass_matl["refraction_color"]->setFloat(0.1608f, 1.7529f, 0.1333f);
 	//glass_matl["reflection_color"]->setFloat(0.4f, 2.f, 0.4f);
 	glass_matl["refraction_maxdepth"]->setInt(100);
 	//glass_matl["reflection_maxdepth"]->setInt(5);
@@ -423,11 +433,11 @@ void createTopGroups(Context context,
 
 	std::vector<float4>* volvox_locs = new std::vector<float4>();
 
-	volvox_locs->push_back(make_float4(0.f, 0.f, 1.5f, 0.5f));
+	volvox_locs->push_back(make_float4(0.f, 0.f, 2.5f, 0.5f));
 
 	volvox_locs->push_back(make_float4(-2.f, -2.f, 6.f, 1.f));
 	volvox_locs->push_back(make_float4(-2.f, -4.f,12.f, 1.f));
-	volvox_locs->push_back(make_float4(0.f, 5.f, 3.f, 1.f));
+	volvox_locs->push_back(make_float4(-1.f, 1.5f, 3.f, 1.f));
 	volvox_locs->push_back(make_float4(5.f, -3.f, 8.f, 1.f));
 
 
@@ -605,13 +615,43 @@ void glutKeyboardPress( unsigned char k, int x, int y )
             destroyContext();
             exit(0);
         }
-        case( 's' ):
+        case( 'p' ):
         {
             const std::string outputImage = std::string(SAMPLE_NAME) + ".ppm";
             std::cerr << "Saving current frame to '" << outputImage << "'\n";
             sutil::displayBufferPPM( outputImage.c_str(), getOutputBuffer() );
             break;
         }
+		case( 'w'): // Increase focal length
+		{
+			focal_length += 0.3f;
+
+			context["f_length"]->setFloat(focal_length);
+			break;
+		}
+		case('s'): // decrease focal length
+		{
+			focal_length -= .3f;
+			
+			if (focal_length < 0.2f)
+				focal_length = 0.2f;
+
+			context["f_length"]->setFloat(focal_length);
+			break;
+		}
+		case('d'): // Increase lens radius
+		{
+			lens_rad += 0.1f;
+			context["lens_rad"]->setFloat(lens_rad);
+			break;
+		}
+		case('a'): // decrease lens radius
+		{
+			lens_rad -= 0.1f;
+			if (lens_rad < 0.f) lens_rad = 0.f;
+			context["lens_rad"]->setFloat(lens_rad);
+			break;
+		}
     }
 }
 

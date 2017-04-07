@@ -71,11 +71,11 @@ static __device__ __inline__ uchar4 make_color(const float3& c)
 }
 
 
-static __device__ __inline__ float2 concentric_sample_disk(const float2& u)
+static __device__ __inline__ float2 concentric_sample_disk(const float2& uOffset)
 {
 	// ConcentricSampleDisk
 	// a) Map uniform random number to [-1,1]^2
-	float2 uOffset = 2.f * u - make_float2(1.f, 1.f);
+	//float2 uOffset = 2.f * u - make_float2(1.f, 1.f);
 
 	// b) Handle degeneracy at origin
 	if (uOffset.x == 0 && uOffset.y == 0)
@@ -97,6 +97,26 @@ static __device__ __inline__ float2 concentric_sample_disk(const float2& u)
 
 
 	return r * make_float2(cos(theta), sin(theta));
+}
+
+static __device__ __inline__ float2 get_disk_sample(const float2& u,
+	const float maxwidth,
+	const float maxheight,
+	const uchar2& index)
+{
+
+	float w = (-(1 / 2) + ((index.x + 0.5) / maxwidth));
+		
+	float h = ((1 / 2) - ((index.y + 0.5) / maxheight));
+
+	// a) Map uniform random number to [-1,1]^2
+	float2 uOffset = 2.f * u - make_float2(1.f, 1.f);
+
+	float2 image_point = make_float2(w, h);
+
+	image_point += uOffset;
+
+	return concentric_sample_disk(image_point);
 }
 
 
