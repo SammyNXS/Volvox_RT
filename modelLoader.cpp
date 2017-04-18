@@ -1,5 +1,9 @@
-#include"modelLoader.h"
+/*
+	ASSIMP model loader for OBJ files.
+*/
 
+
+#include"modelLoader.h"
 
 Mesh::Mesh(vector<float3> vertices,vector<int> indices,int noOfTriangles)
 {

@@ -1,5 +1,6 @@
 /* 
- /*Render program functions, modified from work by NVIDIA
+ /*Render program functions for Volvox. Modified from work by NVIDIA. Original
+ copyright retained below.
  */
 
 /* Copyright (c) 2016, NVIDIA CORPORATION. All rights reserved.
@@ -33,7 +34,7 @@
 #include <optixu/optixu_aabb.h>
 #include "random.h"
 
-#define SAMPLE_ITERS_AXIS 4.f
+#define SAMPLE_ITERS_AXIS 3.f
 
 #define SAMPLE_ITERS_RECIP (1.f / (SAMPLE_ITERS_AXIS * SAMPLE_ITERS_AXIS))
 
@@ -90,8 +91,6 @@ RT_PROGRAM void pinhole_camera()
 rtDeclareVariable(float, f_length, , );
 rtDeclareVariable(float, lens_rad, , );
 
-//rtDeclareVariable(float, dist, , );
-
 RT_PROGRAM void thin_lens_camera()
 {
 	// Get ray direction of eye to image plane in the same way as before
@@ -112,11 +111,11 @@ RT_PROGRAM void thin_lens_camera()
 		PerRayData_radiance prd;
 		prd.importance = 1.f;
 		prd.depth = 0;
+		prd.delta_sum = 0.f;
 
 		rtTrace(top_object, ray, prd);
 
 		output_buffer[launch_index] = make_color(prd.result);
-	
 	}
 	else
 	{
@@ -145,16 +144,18 @@ RT_PROGRAM void thin_lens_camera()
 				// 2) Compute point on plane of focus
 
 				float3 ray_origin = init_ray_origin + p_lens.x * U + p_lens.y * V;
-
 				float3 ray_direction = normalize(pFocus - ray_origin);
 
 				// 3) Update ray for effect on lens
-				optix::Ray ray(ray_origin, ray_direction, radiance_ray_type, scene_epsilon);
-
+				optix::Ray ray(ray_origin,
+					ray_direction,
+					radiance_ray_type,
+					scene_epsilon);
 
 				PerRayData_radiance prd;
 				prd.importance = 1.f;
 				prd.depth = 0;
+				prd.delta_sum = 0.f;
 
 				rtTrace(top_object, ray, prd);
 				result_color += prd.result;
@@ -162,9 +163,8 @@ RT_PROGRAM void thin_lens_camera()
 		}
 		result_color *= SAMPLE_ITERS_RECIP;
 
-		output_buffer[launch_index] = make_color(result_color);//make_color(prd.result);
+		output_buffer[launch_index] = make_color(result_color);
 	}
-
 }
 
 
@@ -208,9 +208,11 @@ RT_PROGRAM void glass_any_hit_shadow()
 }
 
 
-//
-// Dielectric surface shader
-//
+/*
+	Volvox transparency closest hit program. Based on NVidia OptiX example
+	glass material program.
+*/
+
 rtDeclareVariable(float3,       cutoff_color, , );
 rtDeclareVariable(float,        fresnel_exponent, , );
 rtDeclareVariable(float,        fresnel_minimum, , );
@@ -223,8 +225,9 @@ rtDeclareVariable(float3,       reflection_color, , );
 rtDeclareVariable(float3,       extinction_constant, , );
 rtDeclareVariable(float, importance_cutoff, , );
 rtDeclareVariable(int, max_depth, , );
+rtBuffer<BasicLight>        lights;
 
-RT_PROGRAM void glass_closest_hit_radiance()
+RT_PROGRAM void volvox_closest_hit_radiance()
 {
   // intersection vectors
   const float3 h = ray.origin + t_hit * ray.direction;            // hitpoint
@@ -232,56 +235,76 @@ RT_PROGRAM void glass_closest_hit_radiance()
 	  normalize(rtTransformNormal(RT_OBJECT_TO_WORLD, shading_normal)); // normal
   const float3 i = ray.direction;                           // incident direction
 
-  float reflection = 1.0f;
-  float3 result = make_float3(0.0f,0.05f, 0.f);
+  float reflection = 0.5f;
+  float3 result = make_float3(0.0f,0.1f, 0.f);
 
-  float3 beer_attenuation;
-  if(dot(n, ray.direction) > 0){
-    // Beer's law attenuation
-    beer_attenuation = exp(extinction_constant * t_hit);
-  } else {
-    beer_attenuation = make_float3(1);
-  }
+  float absorption = 0.2;
 
   // refraction
   if (prd_radiance.depth < min(refraction_maxdepth, max_depth))
   {
     float3 t;											// transmission direction
-    if ( refract(t, i, n, refraction_index) )
-    {
+    // check for external or internal reflection
+    float cos_theta = dot(i, n);
 
-      // check for external or internal reflection
-      float cos_theta = dot(i, n);
-      if (cos_theta < 0.0f)
-        cos_theta = -cos_theta;
-      else
-        cos_theta = dot(t, n);
+	bool isExiting = (cos_theta < 0.0f);
 
-      reflection = fresnel_schlick(cos_theta,
-		  fresnel_exponent,
-		  fresnel_minimum,
-		  fresnel_maximum);
+    if (isExiting)
+		cos_theta = -cos_theta;
 
-      float importance = 
-		  prd_radiance.importance 
-		  * (1.0f-reflection) 
-		  * optix::luminance( refraction_color * beer_attenuation );
-      if ( importance > importance_cutoff ) {
-        optix::Ray ray( h, t, radiance_ray_type, scene_epsilon );
-        PerRayData_radiance refr_prd;
-        refr_prd.depth = prd_radiance.depth+1;
-        refr_prd.importance = importance;
+    reflection = fresnel_schlick(cos_theta,
+		fresnel_exponent,
+		fresnel_minimum,
+		fresnel_maximum);
 
-        rtTrace( top_object, ray, refr_prd );
-        result += (1.0f - reflection) * refraction_color * refr_prd.result;
-      } else {
-        result +=(1.0f - reflection) * refraction_color * cutoff_color;
-      }
+    float importance = 
+		prd_radiance.importance 
+		* (1.0f-reflection) 
+		* optix::luminance( refraction_color );
+	if ( importance > importance_cutoff ) 
+	{
+		/*
+			Single Scattering Approximation
+		*/
+		// Construct ray as normal
+		optix::Ray ray( h, t, radiance_ray_type, scene_epsilon );
+		PerRayData_radiance refr_prd;
+		refr_prd.depth = prd_radiance.depth+1;
+		refr_prd.importance = importance;
+
+		float delta = prd_radiance.delta_sum;
+		
+		float3 attenuation = make_float3(1.f);
+
+		// Before sending ray, we must add delta distance to accumulation.
+		// Only perform if the initial hit was entering (i.e., the new ray trace
+		// will be exiting)
+		if (!isExiting)
+		{
+			// Get delta distance between initial hit distance and hit distance.
+			// Add to current accumulation of delta sum .
+			delta += length(t - t_hit);
+			refr_prd.delta_sum =  delta;
+		}
+
+		// Perform ray trace. This should allow for accumulation down of light and
+		// delta summations
+		rtTrace(top_object, ray, refr_prd);
+
+		// This environment assumes only one light source
+		BasicLight light = lights[0];
+
+		// Get attenuated fraction of light for this hit location:
+		// I_0 * e^-(a*delta)
+		attenuation = light.color * exp2f(-absorption * delta);
+
+
+		// Apply  attenuation on the final result color. The result from ray 
+		// should already include accumulation from the farthest hit Volvox sphere
+		result += (1.0f - reflection) * refraction_color * refr_prd.result * attenuation;
     }
     // else TIR
   }
-
-  result = result * beer_attenuation;
 
   prd_radiance.result = result;
 }
@@ -297,7 +320,6 @@ rtDeclareVariable(float3, Ks, , );
 rtDeclareVariable(float, phong_exp, , );
 rtDeclareVariable(float3, Kd, , );
 rtDeclareVariable(float3, ambient_light_color, , );
-rtBuffer<BasicLight>        lights;
 rtDeclareVariable(rtObject, top_shadower, , );
 
 RT_PROGRAM void closest_hit_radiance3()

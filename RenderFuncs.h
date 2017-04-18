@@ -1,5 +1,6 @@
 /*
-/*Render program functions, modified from work by NVIDIA
+/*Render program functions, modified from work by NVIDIA. Original copyright
+  retained below.
 */
 
 /* 
@@ -126,6 +127,9 @@ struct PerRayData_radiance
   float3 result;
   float  importance;
   int depth;
+
+  float delta_sum;
+
 };
 
 struct PerRayData_shadow

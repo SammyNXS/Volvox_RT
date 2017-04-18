@@ -1,7 +1,7 @@
 /*
-/* Volvox algae rendering project. Modified from example work by NVIDIA
+/* Volvox algae rendering project. Modified from example work by NVIDIA. Original
+   copyright retained below.
 */
-
 
 /* 
  * Copyright (c) 2016, NVIDIA CORPORATION. All rights reserved.
@@ -61,9 +61,18 @@
 
 #define VOLVOX_LEVEL 3
 
-#define FOCAL_LENGTH 2.f
+#define FOCAL_LENGTH 4.f
+#define FOCAL_LENGTH_INCR 0.2f
 
-#define LENS_RAD 0.1f
+#define MIN_FOCAL_LENGTH 0.f
+#define MAX_FOCAL_LENGTH 100.f
+
+#define LENS_RAD 0.f
+#define LENS_RAD_INCR 0.2f
+
+#define RES_WIDTH 810u//540u   1080u
+
+#define RES_HEIGHT 540u//360u    720u
 
 
 using namespace optix;
@@ -85,8 +94,8 @@ static float rand_range(float min, float max)
 //------------------------------------------------------------------------------
 
 Context      context;
-uint32_t     width  = 1080u;
-uint32_t     height = 720;
+uint32_t     width  = RES_WIDTH;
+uint32_t     height = RES_HEIGHT;
 bool         use_pbo = true;
 
 std::string  texture_path;
@@ -104,7 +113,7 @@ int2       mouse_prev_pos;
 int        mouse_button;
 
 // Materials
-Material glass_matl;
+Material volvox_matl;
 Material diffuse_matl;
 
 float focal_length;
@@ -200,7 +209,7 @@ void createContext()
     context->setEntryPointCount( 1 );
     context->setStackSize( 4640 );
 
-    // Note: high max depth for reflection and refraction through glass
+    // Note: high max depth for reflection and refraction through Volvox
     context["max_depth"]->setInt( 100 );
     context["radiance_ray_type"]->setUint( 0 );
     context["shadow_ray_type"]->setUint( 1 );
@@ -253,7 +262,6 @@ void createContext()
 		context->setMissProgram(0,
 			context->createProgramFromPTXFile(render_ptx_path, miss_name));
 		const float3 default_color = make_float3(1.0f, 1.0f, 1.0f);
-		//context["bg_color"]->setFloat(make_float3(1.f, 1.f, 0.8f));
 		context["bg_color"]->setFloat(make_float3(0.f, 0.f, 0.f));
 	}
 }
@@ -274,40 +282,30 @@ void setupMaterials()
 	diffuse_matl["Ks"]->setFloat(0.8f, 0.9f, 0.8f);
 	diffuse_matl["phong_exp"]->setFloat(88);
 	diffuse_matl["reflectivity_n"]->setFloat(0.2f, 0.2f, 0.2f);
-	
 
-
-	// Volvox Color: 41,192,34 -> 0.160784, 0.75294117, 0.1333333
-
-	// Glass material
-	Program glass_ch = 
+	// Volvox Material Color: 41,192,34 -> 0.160784, 0.75294117, 0.1333333
+	Program volvox_ch = 
 		context->createProgramFromPTXFile(render_ptx_path,
-			"glass_closest_hit_radiance");
-	//const std::string glass_ahname = "glass_any_hit_shadow";
-	//Program glass_ah = 
-	//	context->createProgramFromPTXFile(render_ptx_path, glass_ahname);
-	glass_matl = context->createMaterial();
-	glass_matl->setClosestHitProgram(0, glass_ch);
-	//glass_matl->setAnyHitProgram(1, glass_ah);
+			"volvox_closest_hit_radiance");
+	volvox_matl = context->createMaterial();
+	volvox_matl->setClosestHitProgram(0, volvox_ch);
 
-	glass_matl["importance_cutoff"]->setFloat(1e-2f);
-	glass_matl["cutoff_color"]->setFloat(0.34f, 0.8f, 0.85f);
+	volvox_matl["importance_cutoff"]->setFloat(1e-2f);
+	volvox_matl["cutoff_color"]->setFloat(0.34f, 0.8f, 0.85f);
 
-	glass_matl["fresnel_exponent"]->setFloat(3.0f);
-	glass_matl["fresnel_minimum"]->setFloat(0.1f);
-	glass_matl["fresnel_maximum"]->setFloat(1.5f);
+	volvox_matl["fresnel_exponent"]->setFloat(3.0f);
+	volvox_matl["fresnel_minimum"]->setFloat(0.1f);
+	volvox_matl["fresnel_maximum"]->setFloat(1.5f);
 
-	glass_matl["refraction_index"]->setFloat(1.1f);
-	glass_matl["refraction_color"]->setFloat(0.1608f, 1.7529f, 0.1333f);
-	//glass_matl["reflection_color"]->setFloat(0.4f, 2.f, 0.4f);
-	glass_matl["refraction_maxdepth"]->setInt(100);
-	//glass_matl["reflection_maxdepth"]->setInt(5);
+	volvox_matl["refraction_index"]->setFloat(1.0f);
+	volvox_matl["refraction_color"]->setFloat(0.1608f, 0.7529f, 0.1333f);
+	volvox_matl["refraction_maxdepth"]->setInt(100);
 	float3 extinction = make_float3(.80f, .89f, .75f);
 
-	glass_matl["extinction_constant"]->setFloat(log(extinction.x),
+	volvox_matl["extinction_constant"]->setFloat(log(extinction.x),
 		log(extinction.y),
 		log(extinction.z));
-	glass_matl["shadow_attenuation"]->setFloat(0.4f, 0.7f, 0.4f);
+	volvox_matl["shadow_attenuation"]->setFloat(0.4f, 0.7f, 0.4f);
 
 }
 
@@ -380,6 +378,47 @@ void createGeometry()
 	createTopGroups(context, sphere, sphere_locs, false);
 }
 
+std::vector<float4>* GenerateVolvoxLocs()
+{
+	std::vector<float4>* volvox_locs = new std::vector<float4>();
+
+	volvox_locs->push_back(make_float4(0.f, 0.f, 7.5f, 0.5f));
+	volvox_locs->push_back(make_float4(-2.f, -2.f, 11.f, 0.5f));
+	volvox_locs->push_back(make_float4(-2.f, -4.f, 17.f, 0.5f));
+	volvox_locs->push_back(make_float4(-1.f, 2.f, 8.f, 0.5f));
+	volvox_locs->push_back(make_float4(3.f, 1.8f, 7.f, 0.5f));
+
+	volvox_locs->push_back(make_float4(4.f, -3.f, 13.f, 0.5f));
+	volvox_locs->push_back(make_float4(0.f, -2.f, 8.f, 0.5f));
+	volvox_locs->push_back(make_float4(-1.f, -1.f, 8.f, 0.5f));
+	volvox_locs->push_back(make_float4(-2.f, 0.f, 11.f, 0.5f));
+
+	volvox_locs->push_back(make_float4(-3.f, 2.f, 13.f, 0.5f));
+	volvox_locs->push_back(make_float4(2.5f, 2.f, 15.f, 0.5f));
+	volvox_locs->push_back(make_float4(2.f, -2.f, 15.f, 0.5f));
+	volvox_locs->push_back(make_float4(1.f, 2.f, 8.f, 0.5f));
+	volvox_locs->push_back(make_float4(1.f, -2.f, 10.f, 0.5f));
+
+	volvox_locs->push_back(make_float4(3.f, 0.f, 10.f, 0.5f));
+	volvox_locs->push_back(make_float4(-1.f, 1.f, 6.f, 0.5f));
+	volvox_locs->push_back(make_float4(1.8f, 1.f, 6.f, 0.5f));
+
+	volvox_locs->push_back(make_float4(2.f, -2.f, 8.f, 0.5f));
+	volvox_locs->push_back(make_float4(-0.2f, -0.5f, 6.f, 0.5f));
+	volvox_locs->push_back(make_float4(-0.2f, -1.f, 10.f, 0.5f));
+
+	volvox_locs->push_back(make_float4(-3.f, -1.f, 12.f, 0.5f));
+	volvox_locs->push_back(make_float4(-2.f, -2.f, 14.f, 0.5f));
+	volvox_locs->push_back(make_float4(-5.f, -3.f, 14.f, 0.5f));
+	volvox_locs->push_back(make_float4(-1.5f, 0.5f, 5.f, 0.5f));
+
+	// Volvox with inner child
+	volvox_locs->push_back(make_float4(2.f, 0.f, 9.f, 0.25f));
+	volvox_locs->push_back(make_float4(2.f, 0.f, 9.f, 0.5f));
+
+	return volvox_locs;
+}
+
 void createTopGroups(Context context,
 	const Geometry& geometry,
 	const vector<float3>* locs,
@@ -397,7 +436,7 @@ void createTopGroups(Context context,
 	sphere_inst->setGeometry(geometry);
 	sphere_inst->setMaterialCount(1);
 #ifdef USING_TRANSPARENCY
-	sphere_inst->setMaterial(0, glass_matl);
+	sphere_inst->setMaterial(0, volvox_matl);
 #else
 	sphere_inst->setMaterial(0, diffuse_matl);
 #endif
@@ -431,19 +470,7 @@ void createTopGroups(Context context,
 	group->setAcceleration(volvox_accel);
 
 
-	std::vector<float4>* volvox_locs = new std::vector<float4>();
-
-	volvox_locs->push_back(make_float4(0.f, 0.f, 2.5f, 0.5f));
-
-	volvox_locs->push_back(make_float4(-2.f, -2.f, 6.f, 1.f));
-	volvox_locs->push_back(make_float4(-2.f, -4.f,12.f, 1.f));
-	volvox_locs->push_back(make_float4(-1.f, 1.5f, 3.f, 1.f));
-	volvox_locs->push_back(make_float4(5.f, -3.f, 8.f, 1.f));
-
-
-	// Volvox with inner child
-	volvox_locs->push_back(make_float4(2.f, 0.f, 5.f, 0.5f));
-	volvox_locs->push_back(make_float4(2.f, 0.f, 5.f, 1.f));
+	std::vector<float4>* volvox_locs = GenerateVolvoxLocs();
 
 	// Create a toplevel group holding all the row groups.
 	Acceleration top_accel = no_accel ?
@@ -475,8 +502,6 @@ void createTopGroups(Context context,
 
 void setupCamera()
 {
-    //camera_eye    = make_float3( 7.0f, 9.2f, -6.0f );
-    //camera_lookat = make_float3( 0.0f, 4.0f,  0.0f );
 	camera_eye = make_float3(0.0f, 0.0f, 0.0f);
 	camera_lookat = make_float3(0.0f, 0.0f, 1.0f);
 	
@@ -489,8 +514,7 @@ void setupCamera()
 void setupLights()
 {
 	BasicLight lights[] = {
-	//	{ make_float3(-5.0f, 60.0f, -16.0f), make_float3(1.0f, 1.0f, 1.0f), 1 },
-		{ make_float3(0.f, 0.0f, -5.0f), make_float3(1.0f, 1.0f, 1.0f), 1 }
+		{ make_float3(0.f, -5.0f, -5.0f), make_float3(2.0f, 2.0f, 2.0f), 1 }
 	};
     Buffer light_buffer = context->createBuffer( RT_BUFFER_INPUT );
     light_buffer->setFormat( RT_FORMAT_USER );
@@ -500,12 +524,15 @@ void setupLights()
     light_buffer->unmap();
 
     context[ "lights" ]->set( light_buffer );
+
+
+	volvox_matl["lights"]->set(light_buffer);
 }
 
 
 void updateCamera()
 {
-	const float vfov = 60.0f;
+	const float vfov = 40.0f;
     const float aspect_ratio = static_cast<float>(width) /
                                static_cast<float>(height);
 
@@ -624,31 +651,35 @@ void glutKeyboardPress( unsigned char k, int x, int y )
         }
 		case( 'w'): // Increase focal length
 		{
-			focal_length += 0.3f;
+			focal_length += FOCAL_LENGTH_INCR;
+
+			if (focal_length > MAX_FOCAL_LENGTH)
+				focal_length = MAX_FOCAL_LENGTH;
 
 			context["f_length"]->setFloat(focal_length);
 			break;
 		}
 		case('s'): // decrease focal length
 		{
-			focal_length -= .3f;
+			focal_length -= FOCAL_LENGTH_INCR;
 			
-			if (focal_length < 0.2f)
-				focal_length = 0.2f;
+			if (focal_length < MIN_FOCAL_LENGTH)
+				focal_length = MIN_FOCAL_LENGTH;
 
 			context["f_length"]->setFloat(focal_length);
 			break;
 		}
 		case('d'): // Increase lens radius
 		{
-			lens_rad += 0.1f;
+			lens_rad += LENS_RAD_INCR;
 			context["lens_rad"]->setFloat(lens_rad);
 			break;
 		}
 		case('a'): // decrease lens radius
 		{
-			lens_rad -= 0.1f;
-			if (lens_rad < 0.f) lens_rad = 0.f;
+			lens_rad -= LENS_RAD_INCR;
+			if (lens_rad < 0.f) 
+				lens_rad = 0.f;
 			context["lens_rad"]->setFloat(lens_rad);
 			break;
 		}
