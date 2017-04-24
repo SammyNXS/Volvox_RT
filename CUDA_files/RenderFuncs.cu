@@ -222,8 +222,9 @@ rtDeclareVariable(int,          refraction_maxdepth, , );
 rtDeclareVariable(int,          reflection_maxdepth, , );
 rtDeclareVariable(float3,       refraction_color, , );
 rtDeclareVariable(float3,       reflection_color, , );
-rtDeclareVariable(float3,       extinction_constant, , );
 rtDeclareVariable(float, importance_cutoff, , );
+rtDeclareVariable(float, absorption, , );
+
 rtDeclareVariable(int, max_depth, , );
 rtBuffer<BasicLight>        lights;
 
@@ -237,8 +238,6 @@ RT_PROGRAM void volvox_closest_hit_radiance()
 
   float reflection = 0.5f;
   float3 result = make_float3(0.0f,0.1f, 0.f);
-
-  float absorption = 0.2;
 
   // refraction
   if (prd_radiance.depth < min(refraction_maxdepth, max_depth))

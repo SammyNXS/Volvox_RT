@@ -41,8 +41,8 @@
 .global .align 4 .u32 reflection_maxdepth;
 .global .align 4 .b8 refraction_color[12];
 .global .align 4 .b8 reflection_color[12];
-.global .align 4 .b8 extinction_constant[12];
 .global .align 4 .f32 importance_cutoff;
+.global .align 4 .f32 absorption;
 .global .align 4 .u32 max_depth;
 .global .align 1 .b8 lights[1];
 .global .align 4 .b8 Ka[12];
@@ -104,8 +104,8 @@
 .global .align 4 .b8 _ZN21rti_internal_typeinfo19reflection_maxdepthE[8] = {82, 97, 121, 0, 4, 0, 0, 0};
 .global .align 4 .b8 _ZN21rti_internal_typeinfo16refraction_colorE[8] = {82, 97, 121, 0, 12, 0, 0, 0};
 .global .align 4 .b8 _ZN21rti_internal_typeinfo16reflection_colorE[8] = {82, 97, 121, 0, 12, 0, 0, 0};
-.global .align 4 .b8 _ZN21rti_internal_typeinfo19extinction_constantE[8] = {82, 97, 121, 0, 12, 0, 0, 0};
 .global .align 4 .b8 _ZN21rti_internal_typeinfo17importance_cutoffE[8] = {82, 97, 121, 0, 4, 0, 0, 0};
+.global .align 4 .b8 _ZN21rti_internal_typeinfo10absorptionE[8] = {82, 97, 121, 0, 4, 0, 0, 0};
 .global .align 4 .b8 _ZN21rti_internal_typeinfo9max_depthE[8] = {82, 97, 121, 0, 4, 0, 0, 0};
 .global .align 4 .b8 _ZN21rti_internal_typeinfo2KaE[8] = {82, 97, 121, 0, 12, 0, 0, 0};
 .global .align 4 .b8 _ZN21rti_internal_typeinfo2KsE[8] = {82, 97, 121, 0, 12, 0, 0, 0};
@@ -142,8 +142,8 @@
 .global .align 1 .b8 _ZN21rti_internal_typename19reflection_maxdepthE[4] = {105, 110, 116, 0};
 .global .align 1 .b8 _ZN21rti_internal_typename16refraction_colorE[7] = {102, 108, 111, 97, 116, 51, 0};
 .global .align 1 .b8 _ZN21rti_internal_typename16reflection_colorE[7] = {102, 108, 111, 97, 116, 51, 0};
-.global .align 1 .b8 _ZN21rti_internal_typename19extinction_constantE[7] = {102, 108, 111, 97, 116, 51, 0};
 .global .align 1 .b8 _ZN21rti_internal_typename17importance_cutoffE[6] = {102, 108, 111, 97, 116, 0};
+.global .align 1 .b8 _ZN21rti_internal_typename10absorptionE[6] = {102, 108, 111, 97, 116, 0};
 .global .align 1 .b8 _ZN21rti_internal_typename9max_depthE[4] = {105, 110, 116, 0};
 .global .align 1 .b8 _ZN21rti_internal_typename2KaE[7] = {102, 108, 111, 97, 116, 51, 0};
 .global .align 1 .b8 _ZN21rti_internal_typename2KsE[7] = {102, 108, 111, 97, 116, 51, 0};
@@ -180,8 +180,8 @@
 .global .align 4 .u32 _ZN21rti_internal_typeenum19reflection_maxdepthE = 4919;
 .global .align 4 .u32 _ZN21rti_internal_typeenum16refraction_colorE = 4919;
 .global .align 4 .u32 _ZN21rti_internal_typeenum16reflection_colorE = 4919;
-.global .align 4 .u32 _ZN21rti_internal_typeenum19extinction_constantE = 4919;
 .global .align 4 .u32 _ZN21rti_internal_typeenum17importance_cutoffE = 4919;
+.global .align 4 .u32 _ZN21rti_internal_typeenum10absorptionE = 4919;
 .global .align 4 .u32 _ZN21rti_internal_typeenum9max_depthE = 4919;
 .global .align 4 .u32 _ZN21rti_internal_typeenum2KaE = 4919;
 .global .align 4 .u32 _ZN21rti_internal_typeenum2KsE = 4919;
@@ -218,8 +218,8 @@
 .global .align 1 .b8 _ZN21rti_internal_semantic19reflection_maxdepthE[1];
 .global .align 1 .b8 _ZN21rti_internal_semantic16refraction_colorE[1];
 .global .align 1 .b8 _ZN21rti_internal_semantic16reflection_colorE[1];
-.global .align 1 .b8 _ZN21rti_internal_semantic19extinction_constantE[1];
 .global .align 1 .b8 _ZN21rti_internal_semantic17importance_cutoffE[1];
+.global .align 1 .b8 _ZN21rti_internal_semantic10absorptionE[1];
 .global .align 1 .b8 _ZN21rti_internal_semantic9max_depthE[1];
 .global .align 1 .b8 _ZN21rti_internal_semantic2KaE[1];
 .global .align 1 .b8 _ZN21rti_internal_semantic2KsE[1];
@@ -256,8 +256,8 @@
 .global .align 1 .b8 _ZN23rti_internal_annotation19reflection_maxdepthE[1];
 .global .align 1 .b8 _ZN23rti_internal_annotation16refraction_colorE[1];
 .global .align 1 .b8 _ZN23rti_internal_annotation16reflection_colorE[1];
-.global .align 1 .b8 _ZN23rti_internal_annotation19extinction_constantE[1];
 .global .align 1 .b8 _ZN23rti_internal_annotation17importance_cutoffE[1];
+.global .align 1 .b8 _ZN23rti_internal_annotation10absorptionE[1];
 .global .align 1 .b8 _ZN23rti_internal_annotation9max_depthE[1];
 .global .align 1 .b8 _ZN23rti_internal_annotation2KaE[1];
 .global .align 1 .b8 _ZN23rti_internal_annotation2KsE[1];
@@ -2180,7 +2180,7 @@ BB4_11:
 	.reg .b64 	%SP;
 	.reg .b64 	%SPL;
 	.reg .pred 	%p<34>;
-	.reg .f32 	%f<234>;
+	.reg .f32 	%f<236>;
 	.reg .b32 	%r<35>;
 	.reg .b64 	%rd<31>;
 
@@ -2194,9 +2194,9 @@ BB4_11:
 	add.s64 	%rd11, %rd9, 8;
 	ldu.global.f32 	%f44, [%rd11];
 	mov.u32 	%r1, 7937;
-	mov.f32 	%f233, 0f00000000;
+	mov.f32 	%f235, 0f00000000;
 	// inline asm
-	call (%f38, %f39, %f40, %f41), _rt_transform_tuple, (%r1, %f42, %f43, %f44, %f233);
+	call (%f38, %f39, %f40, %f41), _rt_transform_tuple, (%r1, %f42, %f43, %f44, %f235);
 	// inline asm
 	mul.f32 	%f56, %f39, %f39;
 	fma.rn.f32 	%f57, %f38, %f38, %f56;
@@ -2211,8 +2211,8 @@ BB4_11:
 	ld.global.u32 	%r3, [max_depth];
 	ld.global.u32 	%r4, [refraction_maxdepth];
 	min.s32 	%r5, %r4, %r3;
-	mov.f32 	%f232, 0f3DCCCCCD;
-	mov.f32 	%f231, %f233;
+	mov.f32 	%f234, 0f3DCCCCCD;
+	mov.f32 	%f233, %f235;
 	setp.ge.s32	%p2, %r2, %r5;
 	@%p2 bra 	BB5_18;
 
@@ -2328,20 +2328,20 @@ BB4_11:
 	setp.lt.f32	%p8, %f136, 0fC2D20000;
 	selp.f32	%f146, 0f00000000, %f145, %p8;
 	setp.gt.f32	%p9, %f136, 0f42D20000;
-	selp.f32	%f228, 0f7F800000, %f146, %p9;
-	setp.eq.f32	%p10, %f228, 0f7F800000;
+	selp.f32	%f230, 0f7F800000, %f146, %p9;
+	setp.eq.f32	%p10, %f230, 0f7F800000;
 	@%p10 bra 	BB5_3;
 
-	fma.rn.f32 	%f228, %f228, %f15, %f228;
+	fma.rn.f32 	%f230, %f230, %f15, %f230;
 
 BB5_3:
 	setp.lt.f32	%p11, %f10, 0f00000000;
 	setp.eq.f32	%p12, %f12, 0f3F800000;
 	and.pred  	%p1, %p11, %p12;
-	mov.b32 	 %r12, %f228;
+	mov.b32 	 %r12, %f230;
 	xor.b32  	%r13, %r12, -2147483648;
 	mov.b32 	 %f147, %r13;
-	selp.f32	%f229, %f147, %f228, %p1;
+	selp.f32	%f231, %f147, %f230, %p1;
 	setp.eq.f32	%p13, %f10, 0f00000000;
 	@%p13 bra 	BB5_6;
 	bra.uni 	BB5_4;
@@ -2353,7 +2353,7 @@ BB5_6:
 	or.b32  	%r16, %r15, 2139095040;
 	setp.lt.f32	%p17, %f11, 0f00000000;
 	selp.b32	%r17, %r16, %r15, %p17;
-	mov.b32 	 %f229, %r17;
+	mov.b32 	 %f231, %r17;
 	bra.uni 	BB5_7;
 
 BB5_4:
@@ -2362,29 +2362,29 @@ BB5_4:
 
 	cvt.rzi.f32.f32	%f148, %f11;
 	setp.neu.f32	%p15, %f148, %f11;
-	selp.f32	%f229, 0f7FFFFFFF, %f229, %p15;
+	selp.f32	%f231, 0f7FFFFFFF, %f231, %p15;
 
 BB5_7:
-	abs.f32 	%f212, %f11;
-	add.f32 	%f150, %f13, %f212;
+	abs.f32 	%f214, %f11;
+	add.f32 	%f150, %f13, %f214;
 	mov.b32 	 %r18, %f150;
 	setp.lt.s32	%p18, %r18, 2139095040;
 	@%p18 bra 	BB5_14;
 
-	abs.f32 	%f226, %f11;
+	abs.f32 	%f228, %f11;
 	setp.gtu.f32	%p19, %f13, 0f7F800000;
-	setp.gtu.f32	%p20, %f226, 0f7F800000;
+	setp.gtu.f32	%p20, %f228, 0f7F800000;
 	or.pred  	%p21, %p19, %p20;
 	@%p21 bra 	BB5_13;
 	bra.uni 	BB5_9;
 
 BB5_13:
-	add.f32 	%f229, %f11, %f10;
+	add.f32 	%f231, %f11, %f10;
 	bra.uni 	BB5_14;
 
 BB5_9:
-	abs.f32 	%f227, %f11;
-	setp.eq.f32	%p22, %f227, 0f7F800000;
+	abs.f32 	%f229, %f11;
+	setp.eq.f32	%p22, %f229, 0f7F800000;
 	@%p22 bra 	BB5_12;
 	bra.uni 	BB5_10;
 
@@ -2396,7 +2396,7 @@ BB5_12:
 	selp.b32	%r24, %r23, %r22, %p26;
 	mov.b32 	 %f151, %r24;
 	setp.eq.f32	%p27, %f10, 0fBF800000;
-	selp.f32	%f229, 0f3F800000, %f151, %p27;
+	selp.f32	%f231, 0f3F800000, %f151, %p27;
 	bra.uni 	BB5_14;
 
 BB5_10:
@@ -2407,21 +2407,21 @@ BB5_10:
 	selp.b32	%r19, 2139095040, 0, %p24;
 	or.b32  	%r20, %r19, -2147483648;
 	selp.b32	%r21, %r20, %r19, %p1;
-	mov.b32 	 %f229, %r21;
+	mov.b32 	 %f231, %r21;
 
 BB5_14:
-	mov.f32 	%f232, 0f3DCCCCCD;
-	mov.f32 	%f233, 0f00000000;
-	mov.f32 	%f213, 0f3F800000;
+	mov.f32 	%f234, 0f3DCCCCCD;
+	mov.f32 	%f235, 0f00000000;
+	mov.f32 	%f215, 0f3F800000;
 	setp.eq.f32	%p28, %f11, 0f00000000;
 	setp.eq.f32	%p29, %f10, 0f3F800000;
 	or.pred  	%p30, %p29, %p28;
-	selp.f32	%f155, 0f3F800000, %f229, %p30;
+	selp.f32	%f155, 0f3F800000, %f231, %p30;
 	sub.f32 	%f156, %f9, %f8;
 	fma.rn.f32 	%f157, %f156, %f155, %f8;
 	min.f32 	%f158, %f157, %f9;
 	max.f32 	%f159, %f8, %f158;
-	sub.f32 	%f27, %f213, %f159;
+	sub.f32 	%f27, %f215, %f159;
 	ld.global.f32 	%f161, [prd_radiance+12];
 	mul.f32 	%f162, %f161, %f27;
 	ld.global.f32 	%f163, [refraction_color];
@@ -2432,7 +2432,7 @@ BB5_14:
 	fma.rn.f32 	%f168, %f167, 0f3DE147AE, %f166;
 	mul.f32 	%f28, %f162, %f168;
 	ld.global.f32 	%f169, [importance_cutoff];
-	mov.f32 	%f231, %f233;
+	mov.f32 	%f233, %f235;
 	setp.leu.f32	%p31, %f28, %f169;
 	@%p31 bra 	BB5_18;
 
@@ -2446,7 +2446,7 @@ BB5_14:
 	st.local.f32 	[%rd13+12], %f28;
 	shr.u64 	%rd14, %rd1, 32;
 	cvt.u32.u64	%r27, %rd14;
-	mov.b32 	 %f230, %r27;
+	mov.b32 	 %f232, %r27;
 	@%p33 bra 	BB5_17;
 
 	mul.f32 	%f170, %f171, %f172;
@@ -2454,33 +2454,33 @@ BB5_14:
 	fma.rn.f32 	%f176, %f177, %f178, %f173;
 	sqrt.rn.f32 	%f179, %f176;
 	mov.b32 	 %f180, %r27;
-	add.f32 	%f230, %f180, %f179;
-	st.local.f32 	[%rd2+4], %f230;
+	add.f32 	%f232, %f180, %f179;
+	st.local.f32 	[%rd2+4], %f232;
 
 BB5_17:
 	mov.u64 	%rd29, ray;
-	ldu.global.f32 	%f225, [t_hit];
+	ldu.global.f32 	%f227, [t_hit];
 	add.s64 	%rd28, %rd29, 20;
 	add.s64 	%rd27, %rd29, 8;
-	ldu.global.f32 	%f224, [%rd27];
-	ldu.global.f32 	%f223, [%rd28];
-	fma.rn.f32 	%f222, %f225, %f223, %f224;
+	ldu.global.f32 	%f226, [%rd27];
+	ldu.global.f32 	%f225, [%rd28];
+	fma.rn.f32 	%f224, %f227, %f225, %f226;
 	add.s64 	%rd26, %rd29, 16;
 	add.s64 	%rd25, %rd29, 4;
-	ldu.global.f32 	%f221, [%rd25];
-	ldu.global.f32 	%f220, [%rd26];
-	fma.rn.f32 	%f219, %f225, %f220, %f221;
+	ldu.global.f32 	%f223, [%rd25];
+	ldu.global.f32 	%f222, [%rd26];
+	fma.rn.f32 	%f221, %f227, %f222, %f223;
 	add.s64 	%rd24, %rd29, 12;
-	ldu.global.f32 	%f218, [ray];
-	ldu.global.f32 	%f217, [%rd24];
-	fma.rn.f32 	%f216, %f225, %f217, %f218;
+	ldu.global.f32 	%f220, [ray];
+	ldu.global.f32 	%f219, [%rd24];
+	fma.rn.f32 	%f218, %f227, %f219, %f220;
 	ld.global.u32 	%r30, [radiance_ray_type];
 	ld.global.f32 	%f187, [scene_epsilon];
 	ld.global.u32 	%r29, [top_object];
 	mov.f32 	%f188, 0f6C4ECB8F;
 	mov.u32 	%r31, 24;
 	// inline asm
-	call _rt_trace_64, (%r29, %f216, %f219, %f222, %f189, %f190, %f191, %r30, %f187, %f188, %rd12, %r31);
+	call _rt_trace_64, (%r29, %f218, %f221, %f224, %f189, %f190, %f191, %r30, %f187, %f188, %rd12, %r31);
 	// inline asm
 	mov.u64 	%rd23, lights;
 	cvta.global.u64 	%rd18, %rd23;
@@ -2490,33 +2490,35 @@ BB5_17:
 	// inline asm
 	call (%rd17), _rt_buffer_get_64, (%rd18, %r32, %r33, %rd22, %rd22, %rd22, %rd22);
 	// inline asm
-	mul.f32 	%f192, %f230, 0fBE4CCCCD;
-	ex2.approx.f32 	%f193, %f192;
-	ld.f32 	%f194, [%rd17+20];
-	ld.f32 	%f195, [%rd17+16];
-	ld.f32 	%f196, [%rd17+12];
-	mul.f32 	%f197, %f196, %f193;
-	mul.f32 	%f198, %f195, %f193;
-	mul.f32 	%f199, %f194, %f193;
-	ld.global.f32 	%f200, [refraction_color];
-	mul.f32 	%f201, %f27, %f200;
-	ld.global.f32 	%f202, [refraction_color+4];
+	ld.global.f32 	%f192, [absorption];
+	mul.f32 	%f193, %f232, %f192;
+	neg.f32 	%f194, %f193;
+	ex2.approx.f32 	%f195, %f194;
+	ld.f32 	%f196, [%rd17+20];
+	ld.f32 	%f197, [%rd17+16];
+	ld.f32 	%f198, [%rd17+12];
+	mul.f32 	%f199, %f198, %f195;
+	mul.f32 	%f200, %f197, %f195;
+	mul.f32 	%f201, %f196, %f195;
+	ld.global.f32 	%f202, [refraction_color];
 	mul.f32 	%f203, %f27, %f202;
-	ld.global.f32 	%f204, [refraction_color+8];
+	ld.global.f32 	%f204, [refraction_color+4];
 	mul.f32 	%f205, %f27, %f204;
-	ld.local.f32 	%f206, [%rd2+-16];
-	mul.f32 	%f207, %f201, %f206;
-	ld.local.f32 	%f208, [%rd2+-12];
+	ld.global.f32 	%f206, [refraction_color+8];
+	mul.f32 	%f207, %f27, %f206;
+	ld.local.f32 	%f208, [%rd2+-16];
 	mul.f32 	%f209, %f203, %f208;
-	ld.local.f32 	%f210, [%rd2+-8];
+	ld.local.f32 	%f210, [%rd2+-12];
 	mul.f32 	%f211, %f205, %f210;
-	fma.rn.f32 	%f231, %f197, %f207, 0f00000000;
-	fma.rn.f32 	%f232, %f198, %f209, 0f3DCCCCCD;
-	fma.rn.f32 	%f233, %f199, %f211, 0f00000000;
+	ld.local.f32 	%f212, [%rd2+-8];
+	mul.f32 	%f213, %f207, %f212;
+	fma.rn.f32 	%f233, %f199, %f209, 0f00000000;
+	fma.rn.f32 	%f234, %f200, %f211, 0f3DCCCCCD;
+	fma.rn.f32 	%f235, %f201, %f213, 0f00000000;
 
 BB5_18:
-	st.global.v2.f32 	[prd_radiance], {%f231, %f232};
-	st.global.f32 	[prd_radiance+8], %f233;
+	st.global.v2.f32 	[prd_radiance], {%f233, %f234};
+	st.global.f32 	[prd_radiance+8], %f235;
 	ret;
 }
 

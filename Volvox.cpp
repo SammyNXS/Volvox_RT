@@ -60,6 +60,7 @@
 #define USING_TRANSPARENCY
 
 #define VOLVOX_LEVEL 3
+#define D_VOLVOX_LEVEL 3
 
 #define FOCAL_LENGTH 4.f
 #define FOCAL_LENGTH_INCR 0.2f
@@ -114,6 +115,7 @@ int        mouse_button;
 
 // Materials
 Material volvox_matl;
+Material d_volvox_matl;
 Material diffuse_matl;
 
 float focal_length;
@@ -137,7 +139,9 @@ void setupMaterials();
 void createGeometry();
 void createTopGroups(Context context,
 	const Geometry& geometry,
+	const Geometry& d_geometry,
 	const vector<float3>* locs,
+	const vector<float3>* d_locs,
 	bool no_accel);
 void setupCamera();
 void setupLights();
@@ -300,12 +304,29 @@ void setupMaterials()
 	volvox_matl["refraction_index"]->setFloat(1.0f);
 	volvox_matl["refraction_color"]->setFloat(0.1608f, 0.7529f, 0.1333f);
 	volvox_matl["refraction_maxdepth"]->setInt(100);
-	float3 extinction = make_float3(.80f, .89f, .75f);
 
-	volvox_matl["extinction_constant"]->setFloat(log(extinction.x),
-		log(extinction.y),
-		log(extinction.z));
 	volvox_matl["shadow_attenuation"]->setFloat(0.4f, 0.7f, 0.4f);
+	volvox_matl["absorption"]->setFloat(0.2f);
+
+	Program d_volvox_ch =
+		context->createProgramFromPTXFile(render_ptx_path,
+			"volvox_closest_hit_radiance");
+	d_volvox_matl = context->createMaterial();
+	d_volvox_matl->setClosestHitProgram(0, d_volvox_ch);
+
+	d_volvox_matl["importance_cutoff"]->setFloat(1e-2f);
+	d_volvox_matl["cutoff_color"]->setFloat(0.34f, 0.8f, 0.85f);
+
+	d_volvox_matl["fresnel_exponent"]->setFloat(3.0f);
+	d_volvox_matl["fresnel_minimum"]->setFloat(0.1f);
+	d_volvox_matl["fresnel_maximum"]->setFloat(.5f);
+
+	d_volvox_matl["refraction_index"]->setFloat(1.0f);
+	d_volvox_matl["refraction_color"]->setFloat(0.1608f, 0.7529f, 0.1333f);
+	d_volvox_matl["refraction_maxdepth"]->setInt(100);
+
+	d_volvox_matl["shadow_attenuation"]->setFloat(0.4f, 0.7f, 0.4f);
+	volvox_matl["absorption"]->setFloat(0.2f);
 
 }
 
@@ -329,7 +350,6 @@ bool contains_float3(vector<float3>* vertices, float3 v)
 
 vector<float3>* loadIcosphere(string file)
 {
-
 	// Load and initialize a single teapot model
 	string filepath = "obj\\" + file + ".obj";
 	Model ico_model(filepath);
@@ -350,14 +370,18 @@ vector<float3>* loadIcosphere(string file)
 	return vertices;
 }
 
-
 void createGeometry()
 {
 	// Load icosphere here
 
 	string icosphere_file = "icosphere_" + to_string(VOLVOX_LEVEL);
 
+	string d_icosphere_file = "icosphere_" + to_string(D_VOLVOX_LEVEL);
+
+
 	vector<float3>* sphere_locs = loadIcosphere(icosphere_file);
+
+	vector<float3>* d_sphere_locs = loadIcosphere(d_icosphere_file);
 
 	const std::string sphere_ptx(ptxPath("sphere.cu"));
 	Program sphere_bounds = 
@@ -373,9 +397,17 @@ void createGeometry()
 	sphere->setIntersectionProgram(sphere_intersect);
 	sphere["sphere"]->setFloat(make_float4(0., 0., 0., rad));
 
+	rad = 0.08;
+
+	Geometry d_sphere = context->createGeometry();
+	d_sphere->setPrimitiveCount(1u);
+	d_sphere->setBoundingBoxProgram(sphere_bounds);
+	d_sphere->setIntersectionProgram(sphere_intersect);
+	d_sphere["sphere"]->setFloat(make_float4(0., 0., 0., rad));
+
 	setupMaterials();
     
-	createTopGroups(context, sphere, sphere_locs, false);
+	createTopGroups(context, sphere, d_sphere, sphere_locs, d_sphere_locs, false);
 }
 
 std::vector<float4>* GenerateVolvoxLocs()
@@ -411,17 +443,36 @@ std::vector<float4>* GenerateVolvoxLocs()
 	volvox_locs->push_back(make_float4(-2.f, -2.f, 14.f, 0.5f));
 	volvox_locs->push_back(make_float4(-5.f, -3.f, 14.f, 0.5f));
 	volvox_locs->push_back(make_float4(-1.5f, 0.5f, 5.f, 0.5f));
-
-	// Volvox with inner child
-	volvox_locs->push_back(make_float4(2.f, 0.f, 9.f, 0.25f));
 	volvox_locs->push_back(make_float4(2.f, 0.f, 9.f, 0.5f));
+
+	return volvox_locs;
+}
+
+std::vector<float4>* GenerateDaugheterVolvoxLocs()
+{
+	std::vector<float4>* volvox_locs = new std::vector<float4>();
+
+	// Volvox daughter cells
+	volvox_locs->push_back(make_float4(2.f, 0.1f, 9.f, 0.15f));
+
+	volvox_locs->push_back(make_float4(-2.2f, -3.9f, 17.1f, 0.15f));
+
+	volvox_locs->push_back(make_float4(-1.4f, 0.4f, 4.9f, 0.16f));
+
+	volvox_locs->push_back(make_float4(1.1f, -1.8f, 10.2f, 0.2f));
+
+	volvox_locs->push_back(make_float4(-2.f, -2.f, 10.8f, 0.12f));
+
+	volvox_locs->push_back(make_float4(0.f, -0.7f, 6.2f, 0.15f));
 
 	return volvox_locs;
 }
 
 void createTopGroups(Context context,
 	const Geometry& geometry,
+	const Geometry& d_geometry,
 	const vector<float3>* locs,
+	const vector<float3>* d_locs,
 	bool no_accel)
 {
 	// Geometry group acceleration
@@ -441,6 +492,15 @@ void createTopGroups(Context context,
 	sphere_inst->setMaterial(0, diffuse_matl);
 #endif
 
+	// Sphere instance.
+	GeometryInstance d_sphere_inst = context->createGeometryInstance();
+	d_sphere_inst->setGeometry(d_geometry);
+	d_sphere_inst->setMaterialCount(1);
+#ifdef USING_TRANSPARENCY
+	d_sphere_inst->setMaterial(0, d_volvox_matl);
+#else
+	d_sphere_inst->setMaterial(0, diffuse_matl);
+#endif
 
 	// Wrap sphere instance in a geometry group, to be put into a 
 	GeometryGroup geometry_group = context->createGeometryGroup();
@@ -452,14 +512,14 @@ void createTopGroups(Context context,
 		context->createAcceleration("NoAccel") :
 		context->createAcceleration("Trbvh");
 
-	Group group = context->createGroup();
-	group->setChildCount(static_cast<unsigned int>(locs->size()));
+	Group volvox_group = context->createGroup();
+	volvox_group->setChildCount(static_cast<unsigned int>(locs->size()));
 
 	for (int i = 0; i < locs->size(); ++i)
 	{
 		Transform transform = context->createTransform();
 		transform->setChild(geometry_group);
-		group->setChild(i, transform);
+		volvox_group->setChild(i, transform);
 		float3 pos = locs->at(i);
 		float m[16] = { 1,0,0,-pos.x,
 			0,1,0,-pos.y,
@@ -467,21 +527,49 @@ void createTopGroups(Context context,
 			0,0,0,1 };
 		transform->setMatrix(false, NULL, m);
 	}
-	group->setAcceleration(volvox_accel);
+	volvox_group->setAcceleration(volvox_accel);
 
+	// Wrap sphere instance in a geometry group, to be put into a 
+	GeometryGroup d_geometry_group = context->createGeometryGroup();
+	d_geometry_group->setChildCount(1);
+	d_geometry_group->setChild(0, d_sphere_inst);
+	d_geometry_group->setAcceleration(context->createAcceleration("Bvh"));
+
+	Acceleration d_volvox_accel = no_accel ?
+		context->createAcceleration("NoAccel") :
+		context->createAcceleration("Trbvh");
+
+	Group d_volvox_group = context->createGroup();
+	d_volvox_group->setChildCount(static_cast<unsigned int>(d_locs->size()));
+
+	for (int i = 0; i < d_locs->size(); ++i)
+	{
+		Transform transform = context->createTransform();
+		transform->setChild(d_geometry_group);
+		d_volvox_group->setChild(i, transform);
+		float3 pos = d_locs->at(i);
+		float m[16] = { 1,0,0,-pos.x,
+			0,1,0,-pos.y,
+			0,0,1,-pos.z,
+			0,0,0,1 };
+		transform->setMatrix(false, NULL, m);
+	}
+	d_volvox_group->setAcceleration(d_volvox_accel);
 
 	std::vector<float4>* volvox_locs = GenerateVolvoxLocs();
+
+	std::vector<float4>* d_volvox_locs = GenerateDaugheterVolvoxLocs();
 
 	// Create a toplevel group holding all the row groups.
 	Acceleration top_accel = no_accel ?
 		context->createAcceleration("NoAccel") :
 		context->createAcceleration("Bvh");
 	Group top_group = context->createGroup();;
-	top_group->setChildCount(static_cast<unsigned int>(volvox_locs->size()));
+	top_group->setChildCount(static_cast<unsigned int>(volvox_locs->size() + d_volvox_locs->size()));// +static_cast<unsigned int>(d_volvox_locs->size()));
 	for (unsigned int i = 0; i < volvox_locs->size(); i++) {
 		Transform transform = context->createTransform();
 
-		transform->setChild(group);
+		transform->setChild(volvox_group);
 
 		float4 pos = volvox_locs->at(i);
 		float m[16] = { 1/pos.w ,0,0,-pos.x / pos.w,
@@ -491,6 +579,22 @@ void createTopGroups(Context context,
 		transform->setMatrix(false, NULL, m);
 		top_group->setChild(i, transform);
 	}
+
+	for (unsigned int i = 0; i < d_volvox_locs->size(); i++) {
+		Transform transform = context->createTransform();
+
+		transform->setChild(d_volvox_group);
+
+		float4 pos = d_volvox_locs->at(i);
+		float m[16] = { 1 / pos.w ,0,0,-pos.x / pos.w,
+			0,1 / pos.w ,0,-pos.y / pos.w,
+			0,0,1 / pos.w ,-pos.z / pos.w,
+			0,0,0, 1 };
+		transform->setMatrix(false, NULL, m);
+		top_group->setChild(i+volvox_locs->size(), transform);
+	}
+
+
 	top_group->setAcceleration(top_accel);
 
 	// Attach to context
