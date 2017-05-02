@@ -54,6 +54,16 @@
 #include <sstream>
 #include <direct.h>
 
+#include <cassert>
+#include <string>
+#include <iomanip>
+#include <iostream>
+#include <cstdlib>
+#include <cstring>
+#include <stdint.h>
+
+
+
 #include "modelLoader.h"
 
 #define USING_THIN_LENS
@@ -71,10 +81,24 @@
 #define LENS_RAD 0.f
 #define LENS_RAD_INCR 0.2f
 
-#define RES_WIDTH 810u//540u   1080u
+#define RES_WIDTH 810u
+//#define RES_WIDTH 540u
+//#define RES_WIDTH 1080u
 
-#define RES_HEIGHT 540u//360u    720u
+#define RES_HEIGHT 540u
+//#define RES_HEIGHT 360u
+//#define RES_HEIGHT 720u
 
+#define ANIMATION
+const float MOVE_ANIMATION_RATE = 10.0f;
+
+// Movement directions for volvox groups
+float3 g1_move = make_float3(1.f, 1.f, -0.1f);
+float3 g2_move = make_float3(1.f, 0.f, -0.1f);
+float3 g3_move = make_float3(0.8f, 0.5f, -0.1f);
+float3 g4_move = make_float3(0.8f, -1.f, -0.1f);
+float3 g5_move = make_float3(0.8f, -0.5f, -0.1f);
+float3 g6_move = make_float3(0.5f, -1.f, 0.1f);
 
 using namespace optix;
 using namespace std;
@@ -124,6 +148,11 @@ float lens_rad;
 
 bool test_scale;
 
+// Accel layout
+class DynamicLayout;
+DynamicLayout* layout = NULL;
+
+
 //------------------------------------------------------------------------------
 //
 // Forward decls
@@ -136,13 +165,6 @@ void destroyContext();
 void registerExitHandler();
 void createContext();
 void setupMaterials();
-void createGeometry();
-void createTopGroups(Context context,
-	const Geometry& geometry,
-	const Geometry& d_geometry,
-	const vector<float3>* locs,
-	const vector<float3>* d_locs,
-	bool no_accel);
 void setupCamera();
 void setupLights();
 void updateCamera();
@@ -154,6 +176,497 @@ void glutKeyboardPress( unsigned char k, int x, int y );
 void glutMousePress( int button, int state, int x, int y );
 void glutMouseMotion( int x, int y);
 void glutResize( int w, int h );
+
+struct Volvox_Obj
+{
+	float3 curr_pos;
+	float3 move_dir;
+	double scale;
+	double move_rate;
+	Transform xform;
+
+	Volvox_Obj(float3 curr_pos,
+		float3 move_dir = make_float3(1.f,1.f,-1.f),
+		double scale = 0.5f,
+		double move_rate = 0.2f,
+		Transform xform = NULL) :
+		curr_pos(curr_pos),
+		move_dir(move_dir),
+		scale(scale),
+		move_rate(move_rate),
+		xform(xform)
+	{
+	}
+};
+
+//------------------------------------------------------------------------------
+//
+// Layout classes 
+//
+//------------------------------------------------------------------------------
+
+class DynamicLayout
+{
+public:
+	virtual ~DynamicLayout() {}
+	virtual void createGeometry() = 0;
+	virtual Aabb getSceneBBox() const = 0;
+	virtual void updateGeometry() = 0;
+	vector<float3>* loadIcosphere(string file);
+
+	bool isEqual(float3 a, float3 b);
+	bool contains_float3(vector<float3>* vertices, float3 v);
+
+};
+
+
+vector<float3>* DynamicLayout::loadIcosphere(string file)
+{
+	// Load and initialize a single teapot model
+	string filepath = "obj\\" + file + ".obj";
+	Model ico_model(filepath);
+	ico_model.loadModel(filepath);
+
+	vector<float3> verticesFull = ico_model.meshes[0].vertices;
+	vector<float3>* vertices = new vector<float3>();
+
+	for (int i = 0; i < verticesFull.size(); i++)
+	{
+		const float3 v = verticesFull[i];
+		if (!contains_float3(vertices, v))
+		{
+			vertices->push_back(v);
+		}
+	}
+
+	return vertices;
+}
+
+bool DynamicLayout::isEqual(float3 a, float3 b)
+{
+	return (a.x == b.x) && (a.y == b.y) && (a.z == b.z);
+}
+
+bool DynamicLayout::contains_float3(vector<float3>* vertices, float3 v)
+{
+	for (int i = 0; i < vertices->size(); i++)
+	{
+		const float3 vtemp = vertices->at(i);
+		if (isEqual(vtemp, v))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+//------------------------------------------------------------------------------
+//
+// Multi BVH layout:
+//
+//------------------------------------------------------------------------------
+
+class SeparateAccelsLayout : public DynamicLayout
+{
+public:
+	SeparateAccelsLayout();
+
+	void createGeometry();
+	void createTopGroups(Context context,
+		const Geometry& geometry,
+		const Geometry& d_geometry,
+		const vector<float3>* locs,
+		const vector<float3>* d_locs,
+		bool no_accel);
+	Aabb getSceneBBox()const;
+	void updateGeometry();
+
+	std::vector<Volvox_Obj>* SeparateAccelsLayout::GenerateVolvoxLocs();
+	std::vector<Volvox_Obj>* SeparateAccelsLayout::GenerateDaugheterVolvoxLocs();
+private:
+	struct Mesh
+	{
+		Transform xform;
+		float3    start_pos;
+		float3    end_pos;
+		double    move_start_time;
+	};
+
+	Aabb                    m_aabb;
+	Group                   m_top_object;
+
+	std::vector<Volvox_Obj>* volvox_objs;
+
+	std::vector<Volvox_Obj>* d_volvox_objs;
+
+	Group volvox_group;
+	Group d_volvox_group;
+
+	double move_start_time;
+};
+
+
+SeparateAccelsLayout::SeparateAccelsLayout()
+{
+}
+
+void SeparateAccelsLayout::createGeometry()
+{
+	// Load icosphere here
+	string icosphere_file = "icosphere_" + to_string(VOLVOX_LEVEL);
+
+	string d_icosphere_file = "icosphere_" + to_string(D_VOLVOX_LEVEL);
+
+
+	vector<float3>* sphere_locs = loadIcosphere(icosphere_file);
+
+	vector<float3>* d_sphere_locs = loadIcosphere(d_icosphere_file);
+
+	const std::string sphere_ptx(ptxPath("sphere.cu"));
+	Program sphere_bounds =
+		context->createProgramFromPTXFile(sphere_ptx, "bounds");
+	Program sphere_intersect =
+		context->createProgramFromPTXFile(sphere_ptx, "robust_intersect");
+
+	float rad = (VOLVOX_LEVEL >= 3) ? 0.035f : 0.05f;
+
+	Geometry sphere = context->createGeometry();
+	sphere->setPrimitiveCount(1u);
+	sphere->setBoundingBoxProgram(sphere_bounds);
+	sphere->setIntersectionProgram(sphere_intersect);
+	sphere["sphere"]->setFloat(make_float4(0.f, 0.f, 0.f, rad));
+
+	rad = 0.08f;
+
+	Geometry d_sphere = context->createGeometry();
+	d_sphere->setPrimitiveCount(1u);
+	d_sphere->setBoundingBoxProgram(sphere_bounds);
+	d_sphere->setIntersectionProgram(sphere_intersect);
+	d_sphere["sphere"]->setFloat(make_float4(0.f, 0.f, 0.f, rad));
+
+	setupMaterials();
+
+	createTopGroups(context, sphere, d_sphere, sphere_locs, d_sphere_locs, false);
+	move_start_time = sutil::currentTime();
+}
+
+
+Aabb SeparateAccelsLayout::getSceneBBox()const
+{
+	return m_aabb;
+}
+
+void SeparateAccelsLayout::updateGeometry()
+{
+#ifdef ANIMATION
+	double t0 = sutil::currentTime();
+	const double elapsed_time = t0 - move_start_time;
+
+	const float t = static_cast<float>(elapsed_time / MOVE_ANIMATION_RATE);
+
+	//Iterate over all volvox
+	for (int i = 0; i < volvox_objs->size(); ++i)
+	{
+		Volvox_Obj volvox = volvox_objs->at(i);
+
+		const float3 lerp_pos = lerp(volvox.curr_pos,
+			volvox.curr_pos + (volvox.move_dir * volvox.move_rate),
+			t);
+		volvox.curr_pos = lerp_pos;
+
+		// Update transform
+		Transform transform = volvox.xform;
+
+		float3 pos = volvox.curr_pos;
+		float scale = volvox.scale;
+
+		float m[16] = { 1 / scale ,0,0,-pos.x / scale,
+			0,1 / scale ,0,-pos.y / scale,
+			0,0,1 / scale ,-pos.z / scale,
+			0,0,0, 1 };
+		transform->setMatrix(false, NULL, m);
+		m_top_object->setChild(i, transform);
+		volvox.xform = transform;
+		volvox_objs->at(i) = volvox;
+	}
+
+	for (int i = 0; i < d_volvox_objs->size(); ++i)
+	{
+		Volvox_Obj d_volvox = d_volvox_objs->at(i);
+		const float3 lerp_pos = lerp(d_volvox.curr_pos,
+			d_volvox.curr_pos + (d_volvox.move_dir * d_volvox.move_rate),
+			t);
+		d_volvox.curr_pos = lerp_pos;
+
+		// Update transform
+		Transform transform = d_volvox.xform;
+
+		float3 pos = d_volvox.curr_pos;
+		float scale = d_volvox.scale;
+		float m[16] = { 1 / scale ,0,0,-pos.x / scale,
+			0,1 / scale,0,-pos.y / scale,
+			0,0,1 / scale ,-pos.z / scale,
+			0,0,0, 1 };
+		transform->setMatrix(false, NULL, m);
+		m_top_object->setChild(i + volvox_objs->size(), transform);
+		d_volvox.xform = transform;
+		d_volvox_objs->at(i) = d_volvox;
+
+	}
+
+	// Update top group
+	m_top_object->getAcceleration()->markDirty();
+	m_top_object->getContext()->launch(0, 0, 0);
+
+	// Reset animation time
+	move_start_time = sutil::currentTime();
+#endif // ANIMATION
+}
+
+void SeparateAccelsLayout::createTopGroups(Context context,
+	const Geometry& geometry,
+	const Geometry& d_geometry,
+	const vector<float3>* locs,
+	const vector<float3>* d_locs,
+	bool no_accel)
+{
+	// Geometry group acceleration
+	Acceleration gg_accel = no_accel ?
+		context->createAcceleration("NoAccel") :
+		context->createAcceleration("Bvh");
+
+	test_scale = false;
+
+	// Sphere instance.
+	GeometryInstance sphere_inst = context->createGeometryInstance();
+	sphere_inst->setGeometry(geometry);
+	sphere_inst->setMaterialCount(1);
+#ifdef USING_TRANSPARENCY
+	sphere_inst->setMaterial(0, volvox_matl);
+#else
+	sphere_inst->setMaterial(0, diffuse_matl);
+#endif
+
+	// Sphere instance.
+	GeometryInstance d_sphere_inst = context->createGeometryInstance();
+	d_sphere_inst->setGeometry(d_geometry);
+	d_sphere_inst->setMaterialCount(1);
+#ifdef USING_TRANSPARENCY
+	d_sphere_inst->setMaterial(0, d_volvox_matl);
+#else
+	d_sphere_inst->setMaterial(0, diffuse_matl);
+#endif
+
+	// Wrap sphere instance in a geometry group, to be put into a 
+	GeometryGroup geometry_group = context->createGeometryGroup();
+	geometry_group->setChildCount(1);
+	geometry_group->setChild(0, sphere_inst);
+	geometry_group->setAcceleration(context->createAcceleration("Bvh"));
+
+	Acceleration volvox_accel = no_accel ?
+		context->createAcceleration("NoAccel") :
+		context->createAcceleration("Trbvh");
+
+	volvox_group = context->createGroup();
+	volvox_group->setChildCount(static_cast<unsigned int>(locs->size()));
+
+	for (int i = 0; i < locs->size(); ++i)
+	{
+		Transform transform = context->createTransform();
+		transform->setChild(geometry_group);
+		volvox_group->setChild(i, transform);
+		float3 pos = locs->at(i);
+		float m[16] = { 1,0,0,-pos.x,
+			0,1,0,-pos.y,
+			0,0,1,-pos.z,
+			0,0,0,1 };
+		transform->setMatrix(false, NULL, m);
+	}
+	volvox_group->setAcceleration(volvox_accel);
+
+	// Wrap sphere instance in a geometry group, to be put into a 
+	GeometryGroup d_geometry_group = context->createGeometryGroup();
+	d_geometry_group->setChildCount(1);
+	d_geometry_group->setChild(0, d_sphere_inst);
+	d_geometry_group->setAcceleration(context->createAcceleration("Bvh"));
+
+	Acceleration d_volvox_accel = no_accel ?
+		context->createAcceleration("NoAccel") :
+		context->createAcceleration("Trbvh");
+
+	d_volvox_group = context->createGroup();
+	d_volvox_group->setChildCount(static_cast<unsigned int>(d_locs->size()));
+
+	for (int i = 0; i < d_locs->size(); ++i)
+	{
+		Transform transform = context->createTransform();
+		transform->setChild(d_geometry_group);
+		d_volvox_group->setChild(i, transform);
+		float3 pos = d_locs->at(i);
+		float m[16] = { 1,0,0,-pos.x,
+			0,1,0,-pos.y,
+			0,0,1,-pos.z,
+			0,0,0,1 };
+		transform->setMatrix(false, NULL, m);
+	}
+	d_volvox_group->setAcceleration(d_volvox_accel);
+
+	volvox_objs = GenerateVolvoxLocs();
+
+	d_volvox_objs = GenerateDaugheterVolvoxLocs();
+
+	// Create a toplevel group holding all the row groups.
+	Acceleration top_accel = no_accel ?
+		context->createAcceleration("NoAccel") :
+		context->createAcceleration("Bvh");
+	m_top_object = context->createGroup();;
+	m_top_object->setChildCount(static_cast<unsigned int>(volvox_objs->size() + d_volvox_objs->size()));
+	for (unsigned int i = 0; i < volvox_objs->size(); i++) {
+		Transform transform = context->createTransform();
+
+		transform->setChild(volvox_group);
+
+		Volvox_Obj volvox = volvox_objs->at(i);
+		float3 pos = volvox.curr_pos;
+		float scale = volvox.scale;
+
+		float m[16] = { 1 / scale ,0,0,-pos.x / scale,
+			0,1 / scale ,0,-pos.y / scale,
+			0,0,1 / scale ,-pos.z / scale,
+			0,0,0, 1 };
+		transform->setMatrix(false, NULL, m);
+		m_top_object->setChild(i, transform);
+		volvox_objs->at(i).xform = transform;
+	}
+
+	for (unsigned int i = 0; i < d_volvox_objs->size(); i++) {
+		Transform transform = context->createTransform();
+
+		transform->setChild(d_volvox_group);
+
+		Volvox_Obj d_volvox = d_volvox_objs->at(i);
+		float3 pos = d_volvox.curr_pos;
+		float scale = d_volvox.scale;
+		float m[16] = { 1 / scale ,0,0,-pos.x / scale,
+			0,1 / scale,0,-pos.y / scale,
+			0,0,1 / scale ,-pos.z / scale,
+			0,0,0, 1 };
+		transform->setMatrix(false, NULL, m);
+		m_top_object->setChild(i + volvox_objs->size(), transform);
+		d_volvox_objs->at(i).xform = transform;
+	}
+
+	m_top_object->setAcceleration(top_accel);
+
+	// Attach to context
+	context["top_object"]->set(m_top_object);
+	context["top_shadower"]->set(m_top_object);
+}
+
+std::vector<Volvox_Obj>* SeparateAccelsLayout::GenerateVolvoxLocs()
+{
+	std::vector<Volvox_Obj>* volvox_objs = new std::vector<Volvox_Obj>();
+
+	// Group 1
+	volvox_objs->push_back(Volvox_Obj(make_float3(0.f, 0.f, 7.5f),
+		g1_move));
+	volvox_objs->push_back(Volvox_Obj(make_float3(-2.f, -2.f, 11.f),
+		g1_move));
+	volvox_objs->push_back(Volvox_Obj(make_float3(-2.f, -4.f, 17.f),
+		g1_move));
+	volvox_objs->push_back(Volvox_Obj(make_float3(-1.f, 2.f, 8.f),
+		g1_move));
+	volvox_objs->push_back(Volvox_Obj(make_float3(3.f, 1.8f, 7.f),
+		g1_move));
+
+	// Group 2
+	volvox_objs->push_back(Volvox_Obj(make_float3(4.f, -3.f, 13.f),
+		g2_move));
+	volvox_objs->push_back(Volvox_Obj(make_float3(0.f, -2.f, 8.f),
+		g2_move));
+	volvox_objs->push_back(Volvox_Obj(make_float3(-1.f, -1.f, 8.f),
+		g2_move));
+	volvox_objs->push_back(Volvox_Obj(make_float3(-2.f, 0.f, 11.f),
+		g2_move));
+
+	// Group 3
+	volvox_objs->push_back(Volvox_Obj(make_float3(-3.f, 2.f, 13.f),
+		g3_move));
+	volvox_objs->push_back(Volvox_Obj(make_float3(2.5f, 2.f, 15.f),
+		g3_move));
+	volvox_objs->push_back(Volvox_Obj(make_float3(2.f, -2.f, 15.f),
+		g3_move));
+	volvox_objs->push_back(Volvox_Obj(make_float3(1.f, 2.f, 8.f),
+		g3_move));
+	volvox_objs->push_back(Volvox_Obj(make_float3(1.f, -2.f, 10.f),
+		g3_move));
+
+	// Group 4
+	volvox_objs->push_back(Volvox_Obj(make_float3(3.f, 0.f, 10.f),
+		g4_move));
+	volvox_objs->push_back(Volvox_Obj(make_float3(-1.f, 1.f, 6.f),
+		g4_move));
+	volvox_objs->push_back(Volvox_Obj(make_float3(1.8f, 1.f, 6.f),
+		g4_move));
+
+	// Group 5
+	volvox_objs->push_back(Volvox_Obj(make_float3(2.f, -2.f, 8.f),
+		g5_move));
+	volvox_objs->push_back(Volvox_Obj(make_float3(-0.2f, -0.5f, 6.f),
+		g5_move));
+	volvox_objs->push_back(Volvox_Obj(make_float3(-0.2f, -1.f, 10.f),
+		g5_move));
+
+	// Group 6
+	volvox_objs->push_back(Volvox_Obj(make_float3(-3.f, -1.f, 12.f),
+		g6_move));
+	volvox_objs->push_back(Volvox_Obj(make_float3(-2.f, -2.f, 14.f),
+		g6_move));
+	volvox_objs->push_back(Volvox_Obj(make_float3(-5.f, -3.f, 14.f),
+		g6_move));
+	volvox_objs->push_back(Volvox_Obj(make_float3(-1.5f, 0.5f, 5.f),
+		g6_move));
+	volvox_objs->push_back(Volvox_Obj(make_float3(2.f, 0.f, 9.f),
+		g6_move));
+
+	return volvox_objs;
+}
+
+std::vector<Volvox_Obj>* SeparateAccelsLayout::GenerateDaugheterVolvoxLocs()
+{
+	std::vector<Volvox_Obj>* volvox_objs = new std::vector<Volvox_Obj>();
+
+	// Volvox daughter cells
+
+	// Group 1
+	volvox_objs->push_back(Volvox_Obj(make_float3(-2.2f, -3.9f, 17.1f),
+		g1_move,
+		0.15f));
+	volvox_objs->push_back(Volvox_Obj(make_float3(-2.f, -2.f, 10.8f),
+		g1_move,
+		0.12f));
+
+	// Group 3
+	volvox_objs->push_back(Volvox_Obj(make_float3(1.1f, -1.8f, 10.2f),
+		g3_move,
+		0.2f));
+
+	// Group 5
+	volvox_objs->push_back(Volvox_Obj(make_float3(0.f, -0.7f, 6.2f),
+		g5_move,
+		0.15f));
+
+	// Group 6
+	volvox_objs->push_back(Volvox_Obj(make_float3(2.f, 0.1f, 9.f),
+		g6_move,
+		0.15f));
+
+	volvox_objs->push_back(Volvox_Obj(make_float3(-1.4f, 0.4f, 4.9f),
+		g6_move,
+		0.16f));
+
+	return volvox_objs;
+}
 
 
 //------------------------------------------------------------------------------
@@ -330,280 +843,6 @@ void setupMaterials()
 
 }
 
-bool isEqual(float3 a, float3 b)
-{
-	return (a.x == b.x) && (a.y == b.y) && (a.z == b.z);
-}
-
-bool contains_float3(vector<float3>* vertices, float3 v)
-{
-	for (int i = 0; i < vertices->size(); i++)
-	{
-		const float3 vtemp = vertices->at(i);
-		if (isEqual(vtemp,v))
-		{
-			return true;
-		}
-	}
-	return false;
-}
-
-vector<float3>* loadIcosphere(string file)
-{
-	// Load and initialize a single teapot model
-	string filepath = "obj\\" + file + ".obj";
-	Model ico_model(filepath);
-	ico_model.loadModel(filepath);
-
-	vector<float3> verticesFull = ico_model.meshes[0].vertices;
-	vector<float3>* vertices = new vector<float3>();
-
-	for (int i = 0; i < verticesFull.size(); i++)
-	{
-		const float3 v = verticesFull[i];
-		if(!contains_float3(vertices,v))
-		{
-			vertices->push_back(v);
-		}
-	}
-
-	return vertices;
-}
-
-void createGeometry()
-{
-	// Load icosphere here
-
-	string icosphere_file = "icosphere_" + to_string(VOLVOX_LEVEL);
-
-	string d_icosphere_file = "icosphere_" + to_string(D_VOLVOX_LEVEL);
-
-
-	vector<float3>* sphere_locs = loadIcosphere(icosphere_file);
-
-	vector<float3>* d_sphere_locs = loadIcosphere(d_icosphere_file);
-
-	const std::string sphere_ptx(ptxPath("sphere.cu"));
-	Program sphere_bounds = 
-		context->createProgramFromPTXFile(sphere_ptx, "bounds");
-	Program sphere_intersect = 
-		context->createProgramFromPTXFile(sphere_ptx, "robust_intersect");
-
-	float rad = (VOLVOX_LEVEL >= 3) ? 0.035 : 0.05;
-
-	Geometry sphere = context->createGeometry();
-	sphere->setPrimitiveCount(1u);
-	sphere->setBoundingBoxProgram(sphere_bounds);
-	sphere->setIntersectionProgram(sphere_intersect);
-	sphere["sphere"]->setFloat(make_float4(0., 0., 0., rad));
-
-	rad = 0.08;
-
-	Geometry d_sphere = context->createGeometry();
-	d_sphere->setPrimitiveCount(1u);
-	d_sphere->setBoundingBoxProgram(sphere_bounds);
-	d_sphere->setIntersectionProgram(sphere_intersect);
-	d_sphere["sphere"]->setFloat(make_float4(0., 0., 0., rad));
-
-	setupMaterials();
-    
-	createTopGroups(context, sphere, d_sphere, sphere_locs, d_sphere_locs, false);
-}
-
-std::vector<float4>* GenerateVolvoxLocs()
-{
-	std::vector<float4>* volvox_locs = new std::vector<float4>();
-
-	volvox_locs->push_back(make_float4(0.f, 0.f, 7.5f, 0.5f));
-	volvox_locs->push_back(make_float4(-2.f, -2.f, 11.f, 0.5f));
-	volvox_locs->push_back(make_float4(-2.f, -4.f, 17.f, 0.5f));
-	volvox_locs->push_back(make_float4(-1.f, 2.f, 8.f, 0.5f));
-	volvox_locs->push_back(make_float4(3.f, 1.8f, 7.f, 0.5f));
-
-	volvox_locs->push_back(make_float4(4.f, -3.f, 13.f, 0.5f));
-	volvox_locs->push_back(make_float4(0.f, -2.f, 8.f, 0.5f));
-	volvox_locs->push_back(make_float4(-1.f, -1.f, 8.f, 0.5f));
-	volvox_locs->push_back(make_float4(-2.f, 0.f, 11.f, 0.5f));
-
-	volvox_locs->push_back(make_float4(-3.f, 2.f, 13.f, 0.5f));
-	volvox_locs->push_back(make_float4(2.5f, 2.f, 15.f, 0.5f));
-	volvox_locs->push_back(make_float4(2.f, -2.f, 15.f, 0.5f));
-	volvox_locs->push_back(make_float4(1.f, 2.f, 8.f, 0.5f));
-	volvox_locs->push_back(make_float4(1.f, -2.f, 10.f, 0.5f));
-
-	volvox_locs->push_back(make_float4(3.f, 0.f, 10.f, 0.5f));
-	volvox_locs->push_back(make_float4(-1.f, 1.f, 6.f, 0.5f));
-	volvox_locs->push_back(make_float4(1.8f, 1.f, 6.f, 0.5f));
-
-	volvox_locs->push_back(make_float4(2.f, -2.f, 8.f, 0.5f));
-	volvox_locs->push_back(make_float4(-0.2f, -0.5f, 6.f, 0.5f));
-	volvox_locs->push_back(make_float4(-0.2f, -1.f, 10.f, 0.5f));
-
-	volvox_locs->push_back(make_float4(-3.f, -1.f, 12.f, 0.5f));
-	volvox_locs->push_back(make_float4(-2.f, -2.f, 14.f, 0.5f));
-	volvox_locs->push_back(make_float4(-5.f, -3.f, 14.f, 0.5f));
-	volvox_locs->push_back(make_float4(-1.5f, 0.5f, 5.f, 0.5f));
-	volvox_locs->push_back(make_float4(2.f, 0.f, 9.f, 0.5f));
-
-	return volvox_locs;
-}
-
-std::vector<float4>* GenerateDaugheterVolvoxLocs()
-{
-	std::vector<float4>* volvox_locs = new std::vector<float4>();
-
-	// Volvox daughter cells
-	volvox_locs->push_back(make_float4(2.f, 0.1f, 9.f, 0.15f));
-
-	volvox_locs->push_back(make_float4(-2.2f, -3.9f, 17.1f, 0.15f));
-
-	volvox_locs->push_back(make_float4(-1.4f, 0.4f, 4.9f, 0.16f));
-
-	volvox_locs->push_back(make_float4(1.1f, -1.8f, 10.2f, 0.2f));
-
-	volvox_locs->push_back(make_float4(-2.f, -2.f, 10.8f, 0.12f));
-
-	volvox_locs->push_back(make_float4(0.f, -0.7f, 6.2f, 0.15f));
-
-	return volvox_locs;
-}
-
-void createTopGroups(Context context,
-	const Geometry& geometry,
-	const Geometry& d_geometry,
-	const vector<float3>* locs,
-	const vector<float3>* d_locs,
-	bool no_accel)
-{
-	// Geometry group acceleration
-	Acceleration gg_accel = no_accel ?
-		context->createAcceleration("NoAccel") :
-		context->createAcceleration("Bvh");
-
-	test_scale = false;
-
-	// Sphere instance.
-	GeometryInstance sphere_inst = context->createGeometryInstance();
-	sphere_inst->setGeometry(geometry);
-	sphere_inst->setMaterialCount(1);
-#ifdef USING_TRANSPARENCY
-	sphere_inst->setMaterial(0, volvox_matl);
-#else
-	sphere_inst->setMaterial(0, diffuse_matl);
-#endif
-
-	// Sphere instance.
-	GeometryInstance d_sphere_inst = context->createGeometryInstance();
-	d_sphere_inst->setGeometry(d_geometry);
-	d_sphere_inst->setMaterialCount(1);
-#ifdef USING_TRANSPARENCY
-	d_sphere_inst->setMaterial(0, d_volvox_matl);
-#else
-	d_sphere_inst->setMaterial(0, diffuse_matl);
-#endif
-
-	// Wrap sphere instance in a geometry group, to be put into a 
-	GeometryGroup geometry_group = context->createGeometryGroup();
-	geometry_group->setChildCount(1);
-	geometry_group->setChild(0, sphere_inst);
-	geometry_group->setAcceleration(context->createAcceleration("Bvh"));
-
-	Acceleration volvox_accel = no_accel ?
-		context->createAcceleration("NoAccel") :
-		context->createAcceleration("Trbvh");
-
-	Group volvox_group = context->createGroup();
-	volvox_group->setChildCount(static_cast<unsigned int>(locs->size()));
-
-	for (int i = 0; i < locs->size(); ++i)
-	{
-		Transform transform = context->createTransform();
-		transform->setChild(geometry_group);
-		volvox_group->setChild(i, transform);
-		float3 pos = locs->at(i);
-		float m[16] = { 1,0,0,-pos.x,
-			0,1,0,-pos.y,
-			0,0,1,-pos.z,
-			0,0,0,1 };
-		transform->setMatrix(false, NULL, m);
-	}
-	volvox_group->setAcceleration(volvox_accel);
-
-	// Wrap sphere instance in a geometry group, to be put into a 
-	GeometryGroup d_geometry_group = context->createGeometryGroup();
-	d_geometry_group->setChildCount(1);
-	d_geometry_group->setChild(0, d_sphere_inst);
-	d_geometry_group->setAcceleration(context->createAcceleration("Bvh"));
-
-	Acceleration d_volvox_accel = no_accel ?
-		context->createAcceleration("NoAccel") :
-		context->createAcceleration("Trbvh");
-
-	Group d_volvox_group = context->createGroup();
-	d_volvox_group->setChildCount(static_cast<unsigned int>(d_locs->size()));
-
-	for (int i = 0; i < d_locs->size(); ++i)
-	{
-		Transform transform = context->createTransform();
-		transform->setChild(d_geometry_group);
-		d_volvox_group->setChild(i, transform);
-		float3 pos = d_locs->at(i);
-		float m[16] = { 1,0,0,-pos.x,
-			0,1,0,-pos.y,
-			0,0,1,-pos.z,
-			0,0,0,1 };
-		transform->setMatrix(false, NULL, m);
-	}
-	d_volvox_group->setAcceleration(d_volvox_accel);
-
-	std::vector<float4>* volvox_locs = GenerateVolvoxLocs();
-
-	std::vector<float4>* d_volvox_locs = GenerateDaugheterVolvoxLocs();
-
-	// Create a toplevel group holding all the row groups.
-	Acceleration top_accel = no_accel ?
-		context->createAcceleration("NoAccel") :
-		context->createAcceleration("Bvh");
-	Group top_group = context->createGroup();;
-	top_group->setChildCount(static_cast<unsigned int>(volvox_locs->size() + d_volvox_locs->size()));// +static_cast<unsigned int>(d_volvox_locs->size()));
-	for (unsigned int i = 0; i < volvox_locs->size(); i++) {
-		Transform transform = context->createTransform();
-
-		transform->setChild(volvox_group);
-
-		float4 pos = volvox_locs->at(i);
-		float m[16] = { 1/pos.w ,0,0,-pos.x / pos.w,
-			0,1/pos.w ,0,-pos.y/ pos.w,
-			0,0,1/pos.w ,-pos.z/ pos.w,
-			0,0,0, 1};
-		transform->setMatrix(false, NULL, m);
-		top_group->setChild(i, transform);
-	}
-
-	for (unsigned int i = 0; i < d_volvox_locs->size(); i++) {
-		Transform transform = context->createTransform();
-
-		transform->setChild(d_volvox_group);
-
-		float4 pos = d_volvox_locs->at(i);
-		float m[16] = { 1 / pos.w ,0,0,-pos.x / pos.w,
-			0,1 / pos.w ,0,-pos.y / pos.w,
-			0,0,1 / pos.w ,-pos.z / pos.w,
-			0,0,0, 1 };
-		transform->setMatrix(false, NULL, m);
-		top_group->setChild(i+volvox_locs->size(), transform);
-	}
-
-
-	top_group->setAcceleration(top_accel);
-
-	// Attach to context
-	context["top_object"]->set(top_group);
-	context["top_shadower"]->set(top_group);
-}
-
-
-
 void setupCamera()
 {
 	camera_eye = make_float3(0.0f, 0.0f, 0.0f);
@@ -628,8 +867,6 @@ void setupLights()
     light_buffer->unmap();
 
     context[ "lights" ]->set( light_buffer );
-
-
 	volvox_matl["lights"]->set(light_buffer);
 }
 
@@ -720,6 +957,9 @@ void glutRun()
 void glutDisplay()
 {
     updateCamera();
+
+	layout->updateGeometry();
+
 
     context->launch( 0, width, height );
 
@@ -870,26 +1110,36 @@ int main( int argc, char** argv )
 #ifndef __APPLE__
         glewInit();
 #endif
+		layout = new SeparateAccelsLayout();
 
-        createContext();
-        createGeometry();
-        setupCamera();
-        setupLights();
+		createContext();
+		layout->createGeometry();
 
-        context->validate();
+		setupCamera();
+		setupLights();
 
-        if ( out_file.empty() )
-        {
-            glutRun();
-        }
-        else
-        {
-            updateCamera();
-            context->launch( 0, width, height );
-            sutil::displayBufferPPM( out_file.c_str(), getOutputBuffer() );
-            destroyContext();
-        }
-        return 0;
+		std::cerr << "Validating ... ";
+		context->validate();
+		std::cerr << "done" << std::endl;;
+
+		std::cerr << "Preprocessing scene ... ";
+		const double t0 = sutil::currentTime();
+		context->launch(0, 0, 0);
+		const double t1 = sutil::currentTime();
+		std::cerr << "done (" << t1 - t0 << "sec )" << std::endl;
+
+		if (out_file.empty())
+		{
+			glutRun();
+		}
+		else
+		{
+			updateCamera();
+			context->launch(0, width, height);
+			sutil::displayBufferPPM(out_file.c_str(), getOutputBuffer());
+			destroyContext();
+		}
+		return 0;
     }
     SUTIL_CATCH( context->get() )
 }
